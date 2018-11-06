@@ -57,6 +57,7 @@
 #include "telemetry/srxl.h"
 #include "telemetry/ibus.h"
 #include "telemetry/msp_shared.h"
+#include "telemetry/nc3d.h"
 
 PG_REGISTER_WITH_RESET_TEMPLATE(telemetryConfig_t, telemetryConfig, PG_TELEMETRY_CONFIG, 2);
 
@@ -114,6 +115,9 @@ void telemetryInit(void)
 #endif
 #if defined(USE_MSP_OVER_TELEMETRY)
     initSharedMsp();
+#endif
+#ifdef USE_TELEMETRY_NC3D
+    initNc3dTelemetry();
 #endif
 
     telemetryCheckState();
@@ -189,6 +193,9 @@ void telemetryCheckState(void)
 #ifdef USE_TELEMETRY_IBUS
     checkIbusTelemetryState();
 #endif
+#ifdef USE_TELEMETRY_NC3D
+    checkNc3dTelemetryState();
+#endif
 }
 
 void telemetryProcess(uint32_t currentTime)
@@ -223,6 +230,9 @@ void telemetryProcess(uint32_t currentTime)
 #endif
 #ifdef USE_TELEMETRY_IBUS
     handleIbusTelemetry();
+#endif
+#ifdef USE_TELEMETRY_NC3D
+    handleNc3dTelemetry();
 #endif
 }
 #endif

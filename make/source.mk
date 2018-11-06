@@ -158,6 +158,7 @@ COMMON_SRC = \
             telemetry/msp_shared.c \
             telemetry/ibus.c \
             telemetry/ibus_shared.c \
+            telemetry/nc3d.c \
             sensors/esc_sensor.c \
             io/vtx_string.c \
             io/vtx.c \
