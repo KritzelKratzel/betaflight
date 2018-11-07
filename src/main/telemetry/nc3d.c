@@ -20,6 +20,55 @@
  */
 
 /*
+ * -------------------------------------------------------------------------------
+ * Camera Serial Protocol (CSP):
+ * -------------------------------------------------------------------------------
+ *  <Preamble><MsgType><MsgLen><Payload><CRC>
+ *  
+ *  <Preamble> = "$A" (2 Bytes)
+ *  <MsgType>  = "D" for Data, "C" for Device Configuration" (1 Byte)
+ *  <MsgLen>   = uint16 (2 Bytes, LSB first) length of payload
+ *  <Payload>  = MsgLen x uint8 data
+ *  <CRC>      = uint8 CRC (over <MsgLen> and <Payload>, XOR with every successive
+ *               byte)
+ *
+ *  Payload format:
+ *  ---------------
+ *  <Payload>  = screen position (uint16, LSB first) + ASCII data to be displayed
+ *
+ *  Example:
+ *  ------------------------------------------------------------------------------
+ *  The following serial message will write the string "12.3V" starting at screen 
+ *  position 7 of the utilized camera. (Spaces only for readibility, direct ASCII 
+ *  when appropriate)
+ *
+ *  $ A D 0x07 0x00 0x04 0x00 1 2 . 3 V 0x4c
+ *  ^   ^ ^         ^         ^         ^
+ *  |   | |         |         |         +- CRC = 0x04 xor 0x00 xor 0x31 xor 0x32
+ *  |   | |         |         |                  xor 0x2e xor 0x33 xor 0x56
+ *  |   | |         |         +----------- OSD-Data. Here: "12.3V"
+ *  |   | |         +--------------------- Screen position 4. Lower byte first.
+ *  |   | +------------------------------- MsgLen of 5+2=7 bytes. Lower byte first
+ *  |   +--------------------------------- MsgType is Data. 
+ *  +------------------------------------- Preamble.
+ *
+ *  Actual message: 
+ *  0x24 0x41 0x44 0x07 0x00 0x04 0x00 0x31 0x32 0x2E 0x33 0x56 0x4C
+ *
+ *  Possible screen positions depend on camera firmware. Typically only portions
+ *  of the full screen can be addressed. Incoming message is NOT acknowledged by 
+ *  camera, there is no Tx data from camera to uC.
+ *
+ *  Camera specific restrictions:
+ *  -----------------------------
+ *  1. NanoCam3D Mk.1:
+ *      * Only MsgType = D implemented,
+ *      * Only 64 screen positions available for data display,
+ *      * Fixed Baud rate of 250_000 Bd on serial interface.
+ *      
+ *  End of List.
+ *  ------------------------------------------------------------------------------
+ *
  * Personal remarks:
  *
  * make: add nc3d entry in make/source.mk
@@ -59,6 +108,7 @@
 
 #include "common/maths.h"
 #include "common/axis.h"
+#include "common/printf.h"
 #include "common/color.h"
 #include "common/utils.h"
 
@@ -82,6 +132,7 @@
 #include "io/gps.h"
 #include "io/ledstrip.h"
 #include "io/beeper.h"
+//#include "io/osd.h"
 
 #include "pg/rx.h"
 
@@ -96,6 +147,34 @@
 #include "telemetry/telemetry.h"
 #include "telemetry/nc3d.h"
 
+/*
+ *            OSD Layout
+ * ==================================
+ *    Upper OSD Section - 32 Chars
+ * +--------------------------------+
+ * |M100%       DISARMED        ACRO|
+ * +--------------------------------+
+ *  ^           ^               ^
+ *  |           |               |
+ *  32          44              60
+ * 
+ *    Lower OSD Section - 32 Chars
+ * +--------------------------------+
+ * |12.3V        01:30       _234mAh|
+ * +--------------------------------+
+ *  ^            ^           ^
+ *  |            |           |
+ *  0            13          25
+ */
+#define OSD3D_MAIN_BATT_VOLTAGE_POSITION  0
+#define OSD3D_ARMED_CLOCK_POSITION       13
+#define OSD3D_MAH_DRAWN_POSITION         25
+#define OSD3D_RSSI_VALUE_POSITION        32
+#define OSD3D_HEADLINE_POSITION          44
+#define OSD3D_FLYMODE_MAJOR_POSITION     60
+
+
+
 
 #define TELEMETRY_NC3D_INITIAL_PORT_MODE MODE_TX
 #define NC3D_CYCLETIME   100
@@ -108,17 +187,81 @@ static bool nc3dEnabled;
 
 
 
-static void process_nc3d(void){
-    // FIXME
-    serialWrite(nc3dPort, '$');
-    serialWrite(nc3dPort, 'A');
-    serialWrite(nc3dPort, 'D');
+// static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint8_t position)
+static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint16_t position)
+{
+  // FIXME
+  //serialWrite(nc3dPort, '$');
+  //serialWrite(nc3dPort, 'A');
+  //serialWrite(nc3dPort, 'D');
+
+  uint8_t i, crc;
+  uint16_t msglen;
+  char buff[OSD3D_ELEMENT_BUFFER_LENGTH] = "";
+
+/* const int cellV = osdGetBatteryAverageCellVoltage(); */
+/*             buff[0] = osdGetBatterySymbol(cellV); */
+/*             tfp_sprintf(buff + 1, "%d.%02d%c", cellV / 100, cellV % 100, SYM_VOLT); */
+/* break; */
+
+
+  // Prepare data in ASCII format in buff[]
+  switch (item){
+  case OSD3D_MAIN_BATT_VOLTAGE:
+    {
+
+      //serialWrite(nc3dPort, '$');
+      //serialWrite(nc3dPort, 'A');
+      //serialWrite(nc3dPort, 'D');
+      tfp_sprintf(buff, "%2d.%1d%c", getBatteryVoltage() / 10, getBatteryVoltage() % 10, 'V');
+      //serialPrint(nc3dPort,buff);
+      //serialWrite(nc3dPort, buff);
+
+      break;
+    }
+    
+  default:
+    {
+      break;
+    }
+  }
+
+  // Send Data to serial port with header and footer.
+  // Bug in NanoCam3D Mk.1 camera firmware: strlen(buff) MUST NOT be zero.
+
+  // send header
+  serialPrint(nc3dPort, "$AD");
+
+  // send msglen; must include uint16_t msglen
+  msglen=strlen(buff)+2;
+  serialWrite(nc3dPort, (uint8_t) msglen);
+  serialWrite(nc3dPort, (msglen >> 8));
+
+  // send position, crc calculation starts from here
+  crc = position;
+  serialWrite(nc3dPort, (uint8_t) position);
+  crc ^= (position >> 8);
+  serialWrite(nc3dPort, (position >> 8));
+
+  // send payload
+  for (i=0; i<strlen(buff); i++){
+    crc ^= buff[i];
+    serialWrite(nc3dPort, buff[i]);
+  }
+
+  // send crc
+  serialWrite(nc3dPort, crc);
+
 }
 
+static void process_nc3d(void)
+{
 
 
+  osdDrawSingleElement(nc3dPort,\
+		       OSD3D_MAIN_BATT_VOLTAGE, OSD3D_MAIN_BATT_VOLTAGE_POSITION);
 
-
+}
 
 /*****************************************************************************/
 /* initNc3dTelemetry(), checkNc3dTelemetryState() and handleNc3dTelemetry()  */
@@ -127,64 +270,68 @@ static void process_nc3d(void){
 
 void initNc3dTelemetry(void)
 {
-    portConfig = findSerialPortConfig(FUNCTION_TELEMETRY_NC3D);
-    nc3dPortSharing = determinePortSharing(portConfig, FUNCTION_TELEMETRY_NC3D);
+  portConfig = findSerialPortConfig(FUNCTION_TELEMETRY_NC3D);
+  nc3dPortSharing = determinePortSharing(portConfig, FUNCTION_TELEMETRY_NC3D);
 }
 
 void checkNc3dTelemetryState(void)
 {
-    if (portConfig && telemetryCheckRxPortShared(portConfig)) {
-        if (!nc3dEnabled && telemetrySharedPort != NULL) {
-            nc3dPort = telemetrySharedPort;
-            nc3dEnabled = true;
-        }
-    } else {
-        bool newTelemetryEnabledValue = telemetryDetermineEnabledState(nc3dPortSharing);
-        if (newTelemetryEnabledValue == nc3dEnabled)
-            return;
-        if (newTelemetryEnabledValue)
-            configureNc3dTelemetryPort();
-        else
-            freeNc3dTelemetryPort();
+  if (portConfig && telemetryCheckRxPortShared(portConfig)) {
+    if (!nc3dEnabled && telemetrySharedPort != NULL) {
+      nc3dPort = telemetrySharedPort;
+      nc3dEnabled = true;
     }
+  } else {
+    bool newTelemetryEnabledValue = telemetryDetermineEnabledState(nc3dPortSharing);
+    if (newTelemetryEnabledValue == nc3dEnabled)
+      return;
+    if (newTelemetryEnabledValue)
+      configureNc3dTelemetryPort();
+    else
+      freeNc3dTelemetryPort();
+  }
 }
 
 void handleNc3dTelemetry(void)
 {
-    static uint32_t nc3d_lastCycleTime;
-    uint32_t now;
-    if (!nc3dEnabled)
-        return;
-    if (!nc3dPort)
-        return;
-    now = millis();
-    if ((now - nc3d_lastCycleTime) >= NC3D_CYCLETIME) {
-process_nc3d();
-        nc3d_lastCycleTime = now;
-    }
+  static uint32_t nc3d_lastCycleTime;
+  uint32_t now;
+  if (!nc3dEnabled)
+    return;
+  if (!nc3dPort)
+    return;
+  now = millis();
+  if ((now - nc3d_lastCycleTime) >= NC3D_CYCLETIME) {
+    process_nc3d();
+    nc3d_lastCycleTime = now;
+  }
 }
 
 void configureNc3dTelemetryPort(void)
 {
-    if (!portConfig) {
-        return;
-    }
-    baudRate_e baudRateIndex = portConfig->telemetry_baudrateIndex;
-    if (baudRateIndex == BAUD_AUTO) {
-        baudRateIndex = BAUD_115200; 
-    }
-
-    nc3dPort = openSerialPort(portConfig->identifier, FUNCTION_TELEMETRY_NC3D, NULL, NULL, baudRates[baudRateIndex], TELEMETRY_NC3D_INITIAL_PORT_MODE, telemetryConfig()->telemetry_inverted ? SERIAL_INVERTED : SERIAL_NOT_INVERTED);
-    if (!nc3dPort)
-        return;
-    nc3dEnabled = true;
+  if (!portConfig) {
+    return;
+  }
+  baudRate_e baudRateIndex = portConfig->telemetry_baudrateIndex;
+  if (baudRateIndex == BAUD_AUTO) {
+    baudRateIndex = BAUD_115200; 
+  }
+  
+  nc3dPort = openSerialPort(portConfig->identifier, FUNCTION_TELEMETRY_NC3D, \
+			    NULL, NULL, baudRates[baudRateIndex], \
+			    TELEMETRY_NC3D_INITIAL_PORT_MODE, \
+			    telemetryConfig()->telemetry_inverted \
+			    ? SERIAL_INVERTED : SERIAL_NOT_INVERTED);
+  if (!nc3dPort)
+    return;
+  nc3dEnabled = true;
 }
 
 void freeNc3dTelemetryPort(void)
 {
-    closeSerialPort(nc3dPort);
-    nc3dPort = NULL;
-    nc3dEnabled = false;
+  closeSerialPort(nc3dPort);
+  nc3dPort = NULL;
+  nc3dEnabled = false;
 }
 
 #endif

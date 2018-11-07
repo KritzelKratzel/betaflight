@@ -26,3 +26,14 @@ void handleNc3dTelemetry(void);
 
 void freeNc3dTelemetryPort(void);
 void configureNc3dTelemetryPort(void);
+
+typedef enum {
+    OSD3D_MAIN_BATT_VOLTAGE,
+    OSD3D_ARMED_CLOCK,
+    OSD3D_FLYMODE_MAJOR,
+    OSD3D_HEADLINE,
+    OSD3D_MAH_DRAWN,
+    OSD3D_RSSI_VALUE,
+} osd_items_e;
+
+#define OSD3D_ELEMENT_BUFFER_LENGTH 32
