@@ -287,7 +287,8 @@ static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint16_t 
 	}
       else
 	{
-	  memset(buff,' ',strlen(buff));
+	  // Bug in NanoCam3D Mk.1 camera firmware: strlen(buff) MUST NOT be zero.
+	  memset(buff,' ',8); // idiotic, but works as long as fw bug in cam is there
 	}
       
       break;
