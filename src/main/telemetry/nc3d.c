@@ -20,9 +20,9 @@
  */
 
 /*
- * -------------------------------------------------------------------------------
+ * ===============================================================================
  * Camera Serial Protocol (CSP):
- * -------------------------------------------------------------------------------
+ * ===============================================================================
  *  <Preamble><MsgType><MsgLen><Payload><CRC>
  *  
  *  <Preamble> = "$A" (2 Bytes)
@@ -69,6 +69,44 @@
  *  End of List.
  *  ------------------------------------------------------------------------------
  *
+ * ===============================================================================
+ *  NanoCam3D Mk.1 OSD Layout and Element Positions
+ * ===============================================================================
+ * - Full screen with 45 columns and 20 lines (NTSC) or 23 lines (PAL)
+ * - First three columns and last three columns reserved for 3D-OSD convergence 
+ *   setting
+ * - Limited camera FPGA resources reduce actual usable screen positions to one 
+ *   line on top and one line at bottom of screen, each line with 32 character 
+ *   positions
+ * - Arrangement of usable OSD screen positions can be modified only by camera 
+ *   firmware update
+ * - OSD is set by sending ASCII strings to camera via serial interface using 
+ *   Camera Serial Protocol (CSP).
+ *
+ * +---------------------------------------------+
+ * |###      Upper OSD Section - 32 Chars     ###|
+ * |###   +--------------------------------+  ###|
+ * |###   |M100%       DISARMED        ACRO|  ###|
+ * |###   +--------------------------------+  ###|
+ * |###    |           |               |      ###|
+ * |###    32          44              60     ###|
+ * |###                                       ###|
+ * |###                                       ###|
+ * |###                                       ###|
+ * |###                                       ###|
+ * |###                                       ###|
+ * |###                                       ###|
+ * |###                                       ###|
+ * |###                                       ###|
+ * |###    0            13          25        ###|
+ * |###    |            |           |         ###|
+ * |###   +--------------------------------+  ###|
+ * |###   |12.3V        01:30       _234mAh|  ###|
+ * |###   +--------------------------------+  ###|
+ * |###      Lower OSD Section - 32 Chars     ###
+ * +---------------------------------------------+
+ *
+ *  ------------------------------------------------------------------------------
  * Personal remarks:
  *
  * make: add nc3d entry in make/source.mk
@@ -117,6 +155,7 @@
 #include "drivers/accgyro/accgyro.h"
 
 #include "fc/config.h"
+#include "fc/rc_modes.h"
 #include "fc/rc_controls.h"
 #include "fc/runtime_config.h"
 
@@ -132,7 +171,6 @@
 #include "io/gps.h"
 #include "io/ledstrip.h"
 #include "io/beeper.h"
-//#include "io/osd.h"
 
 #include "pg/rx.h"
 
@@ -147,86 +185,136 @@
 #include "telemetry/telemetry.h"
 #include "telemetry/nc3d.h"
 
-/*
- *            OSD Layout
- * ==================================
- *    Upper OSD Section - 32 Chars
- * +--------------------------------+
- * |M100%       DISARMED        ACRO|
- * +--------------------------------+
- *  ^           ^               ^
- *  |           |               |
- *  32          44              60
- * 
- *    Lower OSD Section - 32 Chars
- * +--------------------------------+
- * |12.3V        01:30       _234mAh|
- * +--------------------------------+
- *  ^            ^           ^
- *  |            |           |
- *  0            13          25
- */
+
+// OSD elements currently defined with static positions
 #define OSD3D_MAIN_BATT_VOLTAGE_POSITION  0
 #define OSD3D_ARMED_CLOCK_POSITION       13
 #define OSD3D_MAH_DRAWN_POSITION         25
 #define OSD3D_RSSI_VALUE_POSITION        32
 #define OSD3D_HEADLINE_POSITION          44
-#define OSD3D_FLYMODE_MAJOR_POSITION     60
+#define OSD3D_FLYMODE_POSITION           60
 
-
-
-
+// further arrangements
+#define SYM_RSSI 0x90
 #define TELEMETRY_NC3D_INITIAL_PORT_MODE MODE_TX
 #define NC3D_CYCLETIME   100
+#define OSD3D_BLINK_CYCLE      500/NC3D_CYCLETIME
 
 static serialPortConfig_t *portConfig;
 static portSharing_e nc3dPortSharing;
 static serialPort_t *nc3dPort;
 static bool nc3dEnabled;
-//static uint8_t nc3d_crc;
+static bool osdBlinkMask = true;
 
 
+static char* blinky(char *str){
+  // make str blinky ... needed for OSD alarm elements.
+  if (!osdBlinkMask){
+    // delete with spaces (ASCII 0x20)
+    memset(str,' ',strlen(str));
+  }
+  return str;  
+}
 
-// static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint8_t position)
 static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint16_t position)
 {
-  // FIXME
-  //serialWrite(nc3dPort, '$');
-  //serialWrite(nc3dPort, 'A');
-  //serialWrite(nc3dPort, 'D');
-
   uint8_t i, crc;
   uint16_t msglen;
   char buff[OSD3D_ELEMENT_BUFFER_LENGTH] = "";
+  static timeUs_t flyTime = 0;
+  static timeUs_t lastTimeUs = 0;
 
-/* const int cellV = osdGetBatteryAverageCellVoltage(); */
-/*             buff[0] = osdGetBatterySymbol(cellV); */
-/*             tfp_sprintf(buff + 1, "%d.%02d%c", cellV / 100, cellV % 100, SYM_VOLT); */
-/* break; */
 
 
   // Prepare data in ASCII format in buff[]
   switch (item){
   case OSD3D_MAIN_BATT_VOLTAGE:
     {
-
-      //serialWrite(nc3dPort, '$');
-      //serialWrite(nc3dPort, 'A');
-      //serialWrite(nc3dPort, 'D');
-      tfp_sprintf(buff, "%2d.%1d%c", getBatteryVoltage() / 10, getBatteryVoltage() % 10, 'V');
-      //serialPrint(nc3dPort,buff);
-      //serialWrite(nc3dPort, buff);
+      tfp_sprintf(buff, "%2d.%1d%c", getBatteryVoltage() / 10, \
+		  getBatteryVoltage() % 10, 'V');
+      if (getBatteryState() != BATTERY_OK) blinky(buff);
 
       break;
     }
-    
+  case OSD3D_ARMED_CLOCK:
+    {
+      const timeUs_t currentTimeUs = micros();
+
+      if (ARMING_FLAG(ARMED)) flyTime += currentTimeUs - lastTimeUs;
+      int seconds = flyTime / 1000000;
+      const int minutes = seconds / 60;
+      seconds = seconds % 60;
+      tfp_sprintf(buff, "%02d:%02d", minutes, seconds);
+      lastTimeUs = currentTimeUs;
+
+      break;
+    }
+  case OSD3D_FLYMODE:
+    {
+      // Note that flight mode display has precedence in what to display.
+      //  1. FS
+      //  2. GPS RESCUE
+      //  3. ANGLE, HORIZON, ACRO TRAINER
+      //  4. AIR
+      //  5. ACRO
+      
+      if (FLIGHT_MODE(FAILSAFE_MODE)) {
+	strcpy(buff, "!FS!");
+      } else if (FLIGHT_MODE(GPS_RESCUE_MODE)) {
+	strcpy(buff, "RESC");
+      } else if (FLIGHT_MODE(HEADFREE_MODE)) {
+	strcpy(buff, "HEAD");
+      } else if (FLIGHT_MODE(ANGLE_MODE)) {
+	strcpy(buff, "STAB");
+      } else if (FLIGHT_MODE(HORIZON_MODE)) {
+	strcpy(buff, "HORZ");
+      } else if (IS_RC_MODE_ACTIVE(BOXACROTRAINER)) {
+	strcpy(buff, "ATRN");
+      } else if (airmodeIsEnabled()) {
+	strcpy(buff, "AIRM");
+      } else {
+	strcpy(buff, "ACRO");
+      }
+
+      break;
+    }
+  case OSD3D_HEADLINE:
+    {
+
+      if (!ARMING_FLAG(ARMED))
+	{
+	  blinky(strcpy(buff,"DISARMED"));
+	}
+      else
+	{
+	  memset(buff,' ',strlen(buff));
+	}
+      
+      break;
+    }
+  case OSD3D_MAH_DRAWN:
+    {
+      tfp_sprintf(buff, "%4d%s", getMAhDrawn(), "mAh");
+
+      break;
+    }
+  case OSD3D_RSSI_VALUE:
+    {
+      uint16_t osdRssi = getRssi() * 100 / 1024; // change range
+      if (osdRssi >= 100) {
+	osdRssi = 100;
+      }
+      tfp_sprintf(buff, "%c%3d%c", SYM_RSSI, osdRssi, '%');
+
+      break;
+    }
   default:
     {
       break;
     }
   }
 
-  // Send Data to serial port with header and footer.
+  // Send Data in buff to serial port with header and footer.
   // Bug in NanoCam3D Mk.1 camera firmware: strlen(buff) MUST NOT be zero.
 
   // send header
@@ -256,11 +344,25 @@ static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint16_t 
 
 static void process_nc3d(void)
 {
+  // Create an OSD blink mask simply by counting the number of calls of
+  // this function.
+  static uint8_t call_cnt = 0;
+  if (call_cnt > OSD3D_BLINK_CYCLE-1)
+    {
+      call_cnt = 0;
+      osdBlinkMask = !osdBlinkMask;
+    }
+  else
+    call_cnt++;
 
-
+  // draw OSD elements
   osdDrawSingleElement(nc3dPort,\
 		       OSD3D_MAIN_BATT_VOLTAGE, OSD3D_MAIN_BATT_VOLTAGE_POSITION);
-
+  osdDrawSingleElement(nc3dPort, OSD3D_ARMED_CLOCK, OSD3D_ARMED_CLOCK_POSITION);
+  osdDrawSingleElement(nc3dPort, OSD3D_FLYMODE, OSD3D_FLYMODE_POSITION);
+  osdDrawSingleElement(nc3dPort, OSD3D_HEADLINE, OSD3D_HEADLINE_POSITION);
+  osdDrawSingleElement(nc3dPort, OSD3D_MAH_DRAWN, OSD3D_MAH_DRAWN_POSITION);
+  osdDrawSingleElement(nc3dPort, OSD3D_RSSI_VALUE, OSD3D_RSSI_VALUE_POSITION);
 }
 
 /*****************************************************************************/

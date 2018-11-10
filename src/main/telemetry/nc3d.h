@@ -30,7 +30,7 @@ void configureNc3dTelemetryPort(void);
 typedef enum {
     OSD3D_MAIN_BATT_VOLTAGE,
     OSD3D_ARMED_CLOCK,
-    OSD3D_FLYMODE_MAJOR,
+    OSD3D_FLYMODE,
     OSD3D_HEADLINE,
     OSD3D_MAH_DRAWN,
     OSD3D_RSSI_VALUE,
