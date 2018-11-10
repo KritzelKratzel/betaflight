@@ -271,7 +271,7 @@ static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint16_t 
       } else if (IS_RC_MODE_ACTIVE(BOXACROTRAINER)) {
 	strcpy(buff, "ATRN");
       } else if (airmodeIsEnabled()) {
-	strcpy(buff, "AIRM");
+	strcpy(buff, " AIR");
       } else {
 	strcpy(buff, "ACRO");
       }
