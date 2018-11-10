@@ -178,6 +178,7 @@
 #define USE_RTC_TIME
 #define USE_RX_MSP
 #define USE_SERIALRX_FPORT      // FrSky FPort
+#define USE_TPA_MODE
 #define USE_TELEMETRY_CRSF
 #define USE_TELEMETRY_SRXL
 #define USE_VIRTUAL_CURRENT_METER
@@ -232,4 +233,5 @@
 #define USE_LED_STRIP
 #define USE_VARIO
 #define USE_RX_LINK_QUALITY_INFO
+#define USE_ESC_SENSOR_TELEMETRY
 #endif
