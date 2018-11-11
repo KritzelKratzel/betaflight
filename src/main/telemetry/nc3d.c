@@ -259,7 +259,7 @@ static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint16_t 
       //  5. ACRO
       
       if (FLIGHT_MODE(FAILSAFE_MODE)) {
-	strcpy(buff, "!FS!");
+	blinky(strcpy(buff, "FAIL"));
       } else if (FLIGHT_MODE(GPS_RESCUE_MODE)) {
 	strcpy(buff, "RESC");
       } else if (FLIGHT_MODE(HEADFREE_MODE)) {
@@ -280,15 +280,9 @@ static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint16_t 
     }
   case OSD3D_HEADLINE:
     {
-
       if (!ARMING_FLAG(ARMED))
 	{
 	  blinky(strcpy(buff,"DISARMED"));
-	}
-      else
-	{
-	  // Bug in NanoCam3D Mk.1 camera firmware: strlen(buff) MUST NOT be zero.
-	  memset(buff,' ',8); // idiotic, but works as long as fw bug in cam is there
 	}
       
       break;
@@ -316,31 +310,33 @@ static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint16_t 
   }
 
   // Send Data in buff to serial port with header and footer.
-  // Bug in NanoCam3D Mk.1 camera firmware: strlen(buff) MUST NOT be zero.
+  if (strlen(buff) > 0) {
+    // if buff is emptly nothing needs to be sent.
+    // Bug in NanoCam3D Mk.1 camera firmware: strlen(buff) MUST NOT be zero.
 
-  // send header
-  serialPrint(nc3dPort, "$AD");
+    // send header
+    serialPrint(nc3dPort, "$AD");
 
-  // send msglen; must include uint16_t msglen
-  msglen=strlen(buff)+2;
-  serialWrite(nc3dPort, (uint8_t) msglen);
-  serialWrite(nc3dPort, (msglen >> 8));
-
-  // send position, crc calculation starts from here
-  crc = position;
-  serialWrite(nc3dPort, (uint8_t) position);
-  crc ^= (position >> 8);
-  serialWrite(nc3dPort, (position >> 8));
-
-  // send payload
-  for (i=0; i<strlen(buff); i++){
-    crc ^= buff[i];
-    serialWrite(nc3dPort, buff[i]);
+    // send msglen; must include uint16_t msglen
+    msglen=strlen(buff)+2;
+    serialWrite(nc3dPort, (uint8_t) msglen);
+    serialWrite(nc3dPort, (msglen >> 8));
+    
+    // send position, crc calculation starts from here
+    crc = (uint8_t) position;
+    serialWrite(nc3dPort, (uint8_t) position);
+    crc ^= (position >> 8);
+    serialWrite(nc3dPort, (position >> 8));
+    
+    // send payload
+    for (i=0; i<strlen(buff); i++){
+      crc ^= buff[i];
+      serialWrite(nc3dPort, buff[i]);
+    }
+    
+    // send crc
+    serialWrite(nc3dPort, crc);
   }
-
-  // send crc
-  serialWrite(nc3dPort, crc);
-
 }
 
 static void process_nc3d(void)
