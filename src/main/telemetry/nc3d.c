@@ -284,6 +284,10 @@ static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint16_t 
 	{
 	  blinky(strcpy(buff,"DISARMED"));
 	}
+      else
+	{
+	  strcpy(buff,"        ");
+	}
       
       break;
     }
