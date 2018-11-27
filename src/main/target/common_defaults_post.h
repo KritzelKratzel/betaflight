@@ -36,6 +36,10 @@
 #ifndef MAX7456_SPI_CS_PIN
 #define MAX7456_SPI_CS_PIN              NONE
 #endif
+
+#ifndef MAX7456_SPI_INSTANCE
+#define MAX7456_SPI_INSTANCE            NULL
+#endif
 #endif
 
 // pg/flash
@@ -331,4 +335,8 @@
 #if defined(INVERTER_PIN_UART1) || defined(INVERTER_PIN_UART2) || defined(INVERTER_PIN_UART3) || defined(INVERTER_PIN_UART4) || defined(INVERTER_PIN_UART5) || defined(INVERTER_PIN_UART6)
 #define USE_INVERTER
 #endif
+#endif
+
+#ifndef DEFAULT_MIXER
+#define DEFAULT_MIXER    MIXER_QUADX
 #endif
