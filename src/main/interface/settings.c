@@ -1010,6 +1010,9 @@ const clivalue_t valueTable[] = {
 #ifdef USE_ADC_INTERNAL
     { "osd_warn_core_temp",         VAR_UINT16  | MASTER_VALUE | MODE_BITSET, .config.bitpos = OSD_WARNING_CORE_TEMPERATURE, PG_OSD_CONFIG, offsetof(osdConfig_t, enabledWarnings)},
 #endif
+#ifdef USE_RC_SMOOTHING_FILTER
+    { "osd_warn_rc_smoothing",      VAR_UINT16  | MASTER_VALUE | MODE_BITSET, .config.bitpos = OSD_WARNING_RC_SMOOTHING,     PG_OSD_CONFIG, offsetof(osdConfig_t, enabledWarnings)},
+#endif
     { "osd_warn_fail_safe",         VAR_UINT16  | MASTER_VALUE | MODE_BITSET, .config.bitpos = OSD_WARNING_FAIL_SAFE,   PG_OSD_CONFIG, offsetof(osdConfig_t, enabledWarnings)},
 #ifdef USE_LAUNCH_CONTROL
     { "osd_warn_launch_control",    VAR_UINT16  | MASTER_VALUE | MODE_BITSET, .config.bitpos = OSD_WARNING_LAUNCH_CONTROL,   PG_OSD_CONFIG, offsetof(osdConfig_t, enabledWarnings)},
@@ -1109,7 +1112,9 @@ const clivalue_t valueTable[] = {
     { "osd_stat_max_esc_rpm",       VAR_UINT32  | MASTER_VALUE | MODE_BITSET, .config.bitpos = OSD_STAT_MAX_ESC_RPM,     PG_OSD_CONFIG, offsetof(osdConfig_t, enabled_stats)},
     { "osd_stat_min_link_quality",  VAR_UINT32  | MASTER_VALUE | MODE_BITSET, .config.bitpos = OSD_STAT_MIN_LINK_QUALITY,PG_OSD_CONFIG, offsetof(osdConfig_t, enabled_stats)},
     { "osd_stat_total_dist",        VAR_UINT32  | MASTER_VALUE | MODE_BITSET, .config.bitpos = OSD_STAT_TOTAL_DISTANCE,  PG_OSD_CONFIG, offsetof(osdConfig_t, enabled_stats)},
-
+#ifdef USE_OSD_PROFILES
+    { "osd_profile",                VAR_UINT8  | MASTER_VALUE, .config.minmax = { 1, OSD_PROFILE_COUNT }, PG_OSD_CONFIG, offsetof(osdConfig_t, osdProfileIndex) },
+#endif
 #endif
 
 // PG_SYSTEM_CONFIG
