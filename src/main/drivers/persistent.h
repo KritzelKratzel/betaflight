@@ -18,30 +18,21 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdbool.h>
-#include <stdint.h>
+#pragma once
 
-#include "platform.h"
+// Available RTC backup registers (4-byte words) per MCU type
+// F4: 20 words
+// F7: 32 words
+// H7: 32 words
 
-#ifdef USE_TARGET_CONFIG
+typedef enum {
+    PERSISTENT_OBJECT_MAGIC = 0,
+    PERSISTENT_OBJECT_HSE_VALUE,
+    PERSISTENT_OBJECT_OVERCLOCK_LEVEL,
+    PERSISTENT_OBJECT_BOOTLOADER_REQUEST,
+    PERSISTENT_OBJECT_COUNT,
+} persistentObjectId_e;
 
-#include "pg/pg.h"
-#include "drivers/max7456.h"
-#include "io/serial.h"
-
-#include "config_helper.h"
-
-static targetSerialPortFunction_t targetSerialPortFunction[] = {
-#ifdef OMNIBUSF4V6
-    { SERIAL_PORT_USART6, FUNCTION_RX_SERIAL },   
-#else
-    { SERIAL_PORT_USART1, FUNCTION_RX_SERIAL },
-    { SERIAL_PORT_UART4,  FUNCTION_ESC_SENSOR },    
-#endif
-};
-
-void targetConfiguration(void)
-{
-    targetSerialPortFunctionConfig(targetSerialPortFunction, ARRAYLEN(targetSerialPortFunction));
-}
-#endif
+void persistentObjectInit(void);
+uint32_t persistentObjectRead(persistentObjectId_e id);
+void persistentObjectWrite(persistentObjectId_e id, uint32_t value);

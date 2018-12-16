@@ -128,6 +128,7 @@
 #if !defined(USE_OSD)
 #undef USE_RX_LINK_QUALITY_INFO
 #undef USE_OSD_PROFILES
+#undef USE_OSD_STICK_OVERLAY
 #endif
 
 /* If either VTX_CONTROL or VTX_COMMON is undefined then remove common code and device drivers */
@@ -214,5 +215,12 @@
 #define SYSTEM_HSE_VALUE TARGET_XTAL_MHZ
 #else
 #define SYSTEM_HSE_VALUE (HSE_VALUE/1000000U)
+#endif
+#endif
+
+// Number of pins that needs pre-init
+#ifdef USE_SPI
+#ifndef SPI_PREINIT_COUNT
+#define SPI_PREINIT_COUNT 16 // 2 x 8 (GYROx2, BARO, MAG, MAX, FLASHx2, RX)
 #endif
 #endif

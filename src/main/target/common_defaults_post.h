@@ -249,6 +249,12 @@
 #define BINDPLUG_PIN NONE
 #endif
 
+#ifdef USE_RX_SPI
+#ifndef RX_SPI_LED_PIN
+#define RX_SPI_LED_PIN NONE
+#endif
+#endif
+
 // F4 and F7 single gyro boards
 #if defined(USE_MULTI_GYRO) && !defined(GYRO_2_SPI_INSTANCE)
 #define GYRO_2_SPI_INSTANCE     GYRO_1_SPI_INSTANCE
@@ -347,5 +353,35 @@
 #endif
 #ifndef RANGEFINDER_HCSR04_ECHO_PIN
 #define RANGEFINDER_HCSR04_ECHO_PIN        NONE
+#endif
+#endif
+
+// Mag
+#if defined(USE_MAG)
+#ifndef MAG_SPI_INSTANCE
+#define MAG_SPI_INSTANCE        NULL
+#endif
+#ifndef MAG_CS_PIN
+#define MAG_CS_PIN              NONE
+#endif
+#ifndef MAG_I2C_INSTANCE
+#define MAG_I2C_INSTANCE        I2C_DEVICE
+#endif
+#endif
+
+#ifndef MAG_INT_EXTI
+#define MAG_INT_EXTI            NONE
+#endif
+
+// Baro
+#if defined(USE_BARO)
+#ifndef BARO_SPI_INSTANCE
+#define BARO_SPI_INSTANCE       NULL
+#endif
+#ifndef BARO_CS_PIN
+#define BARO_CS_PIN             NONE
+#endif
+#ifndef BARO_I2C_INSTANCE
+#define BARO_I2C_INSTANCE       I2C_DEVICE
 #endif
 #endif
