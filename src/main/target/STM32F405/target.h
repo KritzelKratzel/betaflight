@@ -24,9 +24,9 @@
 // to be supplied when the board is configured for the first time
 #define GENERIC_TARGET
 
-#define TARGET_BOARD_IDENTIFIER "S7X2"
+#define TARGET_BOARD_IDENTIFIER "S405"
 
-#define USBD_PRODUCT_STRING     "S7X2"
+#define USBD_PRODUCT_STRING     "S405"
 
 #define USE_BEEPER
 
@@ -89,7 +89,7 @@
 #define USE_UART6
 #define USE_SOFTSERIAL1
 #define USE_SOFTSERIAL2
-
+#define USE_INVERTER
 #define SERIAL_PORT_COUNT       9
 
 #define USE_ESCSERIAL

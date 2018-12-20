@@ -138,6 +138,7 @@ enum {
     MSP_REBOOT_FIRMWARE = 0,
     MSP_REBOOT_BOOTLOADER,
     MSP_REBOOT_MSC,
+    MSP_REBOOT_MSC_UTC,
     MSP_REBOOT_COUNT,
 };
 
@@ -253,8 +254,14 @@ static void mspRebootFn(serialPort_t *serialPort)
         break;
 #if defined(USE_USB_MSC)
     case MSP_REBOOT_MSC:
-        systemResetToMsc();
-
+    case MSP_REBOOT_MSC_UTC: {
+#ifdef USE_RTC_TIME
+        const int16_t timezoneOffsetMinutes = (rebootMode == MSP_REBOOT_MSC) ? timeConfig()->tz_offsetMinutes : 0;
+        systemResetToMsc(timezoneOffsetMinutes);
+#else
+        systemResetToMsc(0);
+#endif
+        }
         break;
 #endif
     default:
@@ -1608,7 +1615,7 @@ static mspResult_e mspProcessInCommand(uint8_t cmdMSP, sbuf_t *src)
                 mac->range.startStep = sbufReadU8(src);
                 mac->range.endStep = sbufReadU8(src);
 
-                useRcControlsConfig(currentPidProfile);
+                rcControlsInit();
             } else {
                 return MSP_RESULT_ERROR;
             }
