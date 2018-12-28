@@ -528,7 +528,6 @@ void changeOsdProfileIndex(uint8_t profileIndex)
 }
 #endif
 
-
 static bool osdDrawSingleElement(uint8_t item)
 {
     if (!VISIBLE(osdConfig()->item_pos[item]) || BLINK(item)) {
@@ -542,25 +541,46 @@ static bool osdDrawSingleElement(uint8_t item)
     switch (item) {
     case OSD_FLIP_ARROW: 
         {
-            const int angleR = attitude.values.roll / 10;
-            const int angleP = attitude.values.pitch / 10; // still gotta update all angleR and angleP pointers.
-            if (isFlipOverAfterCrashActive()) {
-                if (angleP > 0 && ((angleR > 175 && angleR < 180) || (angleR > -180 && angleR < -175))) {
-                    buff[0] = SYM_ARROW_SOUTH;
-                } else if (angleP > 0 && angleR > 0 && angleR < 175) {
-                    buff[0] = (SYM_ARROW_EAST + 2);
-                } else if (angleP > 0 && angleR < 0 && angleR > -175) {
-                    buff[0] = (SYM_ARROW_WEST + 2);
-                } else if (angleP <= 0 && ((angleR > 175 && angleR < 180) || (angleR > -180 && angleR < -175))) {
-                    buff[0] = SYM_ARROW_NORTH;
-                } else if (angleP <= 0 && angleR > 0 && angleR < 175) {
-                    buff[0] = (SYM_ARROW_NORTH + 2);
-                } else if (angleP <= 0 && angleR < 0 && angleR > -175) {
-                    buff[0] = (SYM_ARROW_SOUTH + 2);
+            int rollAngle = attitude.values.roll / 10;
+            const int pitchAngle = attitude.values.pitch / 10;
+            if (abs(rollAngle) > 90) {
+                rollAngle = (rollAngle < 0 ? -180 : 180) - rollAngle;
+            }
+
+            if ((isFlipOverAfterCrashActive() || (!ARMING_FLAG(ARMED) && !STATE(SMALL_ANGLE))) && !((imuConfig()->small_angle < 180) && STATE(SMALL_ANGLE)) && (rollAngle || pitchAngle)) {
+                if (abs(pitchAngle) < 2 * abs(rollAngle) && abs(rollAngle) < 2 * abs(pitchAngle)) {
+                    if (pitchAngle > 0) {
+                        if (rollAngle > 0) {
+                            buff[0] = SYM_ARROW_WEST + 2;
+                        } else {
+                            buff[0] = SYM_ARROW_EAST - 2;
+                        }
+                    } else {
+                        if (rollAngle > 0) {
+                            buff[0] = SYM_ARROW_WEST - 2;
+                        } else {
+                            buff[0] = SYM_ARROW_EAST + 2;
+                        }
+                    }
+                } else {
+                    if (abs(pitchAngle) > abs(rollAngle)) {
+                        if (pitchAngle > 0) {
+                            buff[0] = SYM_ARROW_SOUTH;
+                        } else {
+                            buff[0] = SYM_ARROW_NORTH;
+                        }
+                    } else {
+                        if (rollAngle > 0) {
+                            buff[0] = SYM_ARROW_WEST;
+                        } else {
+                            buff[0] = SYM_ARROW_EAST;
+                        }
+                    }
                 }
             } else {
                 buff[0] = ' ';
             }
+            
             buff[1] = '\0';
             break;
         }
@@ -950,11 +970,43 @@ static bool osdDrawSingleElement(uint8_t item)
                 break;
             }
 
+            // Warn when in flip over after crash mode
+            if (osdWarnGetState(OSD_WARNING_CRASH_FLIP) && isFlipOverAfterCrashActive()) {
+                osdFormatMessage(buff, OSD_FORMAT_MESSAGE_BUFFER_SIZE, "CRASH FLIP");
+                break;
+            }
+
+#ifdef USE_LAUNCH_CONTROL
+            // Warn when in launch control mode
+            if (osdWarnGetState(OSD_WARNING_LAUNCH_CONTROL) && isLaunchControlActive()) {
+                if (sensors(SENSOR_ACC)) {
+                    char launchControlMsg[OSD_FORMAT_MESSAGE_BUFFER_SIZE];
+                    const int pitchAngle = constrain((attitude.raw[FD_PITCH] - accelerometerConfig()->accelerometerTrims.raw[FD_PITCH]) / 10, -90, 90);
+                    tfp_sprintf(launchControlMsg, "LAUNCH %d", pitchAngle);
+                    osdFormatMessage(buff, OSD_FORMAT_MESSAGE_BUFFER_SIZE, launchControlMsg);
+                } else {
+                    osdFormatMessage(buff, OSD_FORMAT_MESSAGE_BUFFER_SIZE, "LAUNCH");
+                }
+                break;
+            }
+#endif
+
             if (osdWarnGetState(OSD_WARNING_BATTERY_CRITICAL) && batteryState == BATTERY_CRITICAL) {
                 osdFormatMessage(buff, OSD_FORMAT_MESSAGE_BUFFER_SIZE, " LAND NOW");
                 SET_BLINK(OSD_WARNINGS);
                 break;
             }
+
+#ifdef USE_GPS_RESCUE
+            if (osdWarnGetState(OSD_WARNING_GPS_RESCUE_UNAVAILABLE) &&
+               ARMING_FLAG(ARMED) &&
+               gpsRescueIsConfigured() &&
+               !isGPSRescueAvailable()) {
+                osdFormatMessage(buff, OSD_FORMAT_MESSAGE_BUFFER_SIZE, "NO GPS RESC");
+                SET_BLINK(OSD_WARNINGS);
+                break;
+            }
+#endif
 
             // Show warning if in HEADFREE flight mode
             if (FLIGHT_MODE(HEADFREE_MODE)) {
@@ -1024,27 +1076,6 @@ static bool osdDrawSingleElement(uint8_t item)
                     SET_BLINK(OSD_WARNINGS);
                     break;
                 }
-            }
-#endif
-
-            // Warn when in flip over after crash mode
-            if (osdWarnGetState(OSD_WARNING_CRASH_FLIP) && isFlipOverAfterCrashActive()) {
-                osdFormatMessage(buff, OSD_FORMAT_MESSAGE_BUFFER_SIZE, "CRASH FLIP");
-                break;
-            }
-
-#ifdef USE_LAUNCH_CONTROL
-            // Warn when in launch control mode
-            if (osdWarnGetState(OSD_WARNING_LAUNCH_CONTROL) && isLaunchControlActive()) {
-                if (sensors(SENSOR_ACC)) {
-                    char launchControlMsg[OSD_FORMAT_MESSAGE_BUFFER_SIZE];
-                    const int pitchAngle = constrain((attitude.raw[FD_PITCH] - accelerometerConfig()->accelerometerTrims.raw[FD_PITCH]) / 10, -90, 90);
-                    tfp_sprintf(launchControlMsg, "LAUNCH %d", pitchAngle);
-                    osdFormatMessage(buff, OSD_FORMAT_MESSAGE_BUFFER_SIZE, launchControlMsg);
-                } else {
-                    osdFormatMessage(buff, OSD_FORMAT_MESSAGE_BUFFER_SIZE, "LAUNCH");
-                }
-                break;
             }
 #endif
 
