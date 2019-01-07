@@ -235,9 +235,9 @@ void telemetryProcess(uint32_t currentTime)
     handleNc3dTelemetry();
 #endif
 }
-#endif
 
 bool telemetryIsSensorEnabled(sensor_e sensor)
 {
     return ~(telemetryConfigMutable()->disabledSensors) & sensor;
 }
+#endif
