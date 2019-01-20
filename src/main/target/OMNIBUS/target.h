@@ -29,7 +29,6 @@
 #undef USE_MSP_DISPLAYPORT
 #undef USE_MSP_OVER_TELEMETRY
 
-#undef USE_RC_SMOOTHING_FILTER
 #undef USE_DYN_LPF
 #undef USE_D_CUT
 
@@ -189,8 +188,6 @@
 //#define BUTTON_B_PIN            PB0
 
 //#define AVOID_UART3_FOR_PWM_PPM // Disable this for using UART3
-
-#define USE_SERIAL_4WAY_BLHELI_INTERFACE
 
 #define TARGET_IO_PORTA         0xffff
 #define TARGET_IO_PORTB         0xffff
