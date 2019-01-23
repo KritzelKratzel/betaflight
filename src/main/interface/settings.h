@@ -92,7 +92,7 @@ typedef enum {
 #ifdef USE_OVERCLOCK
     TABLE_OVERCLOCK,
 #endif
-#ifdef USE_LED_STRIP_STATUS_MODE
+#ifdef USE_LED_STRIP
     TABLE_RGB_GRB,
 #endif
 #ifdef USE_MULTI_GYRO
@@ -135,6 +135,7 @@ typedef enum {
     TABLE_LED_PROFILE,
     TABLE_LED_RACE_COLOR,
 #endif
+    TABLE_GYRO_FILTER_DEBUG,
     LOOKUP_TABLE_COUNT
 } lookupTableIndex_e;
 
