@@ -101,6 +101,7 @@
 
 #include "pg/beeper.h"
 #include "pg/board.h"
+#include "pg/gyrodev.h"
 #include "pg/pg.h"
 #include "pg/pg_ids.h"
 #include "pg/rx.h"
@@ -769,10 +770,29 @@ static bool mspCommonProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst, mspPostProce
         // Enabled warnings
         // Send low word first for backwards compatibility (API < 1.41)
         sbufWriteU16(dst, (uint16_t)(osdConfig()->enabledWarnings & 0xFFFF));
-        // API >= 1.41; send the count and 32bit warnings
+        // API >= 1.41
+        // Send the warnings count and 32bit enabled warnings flags.
+        // Add currently active OSD profile (0 indicates OSD profiles not available).
+        // Add OSD stick overlay mode (0 indicates OSD stick overlay not available).
         sbufWriteU8(dst, OSD_WARNING_COUNT);
         sbufWriteU32(dst, osdConfig()->enabledWarnings);
-#endif
+
+#ifdef USE_OSD_PROFILES
+        sbufWriteU8(dst, OSD_PROFILE_COUNT);            // available profiles
+        sbufWriteU8(dst, osdConfig()->osdProfileIndex); // selected profile
+#else
+        // If the feature is not available there is only 1 profile and it's always selected
+        sbufWriteU8(dst, 1);
+        sbufWriteU8(dst, 1);
+#endif // USE_OSD_PROFILES
+
+#ifdef USE_OSD_STICK_OVERLAY
+        sbufWriteU8(dst, osdConfig()->overlay_radio_mode);
+#else
+        sbufWriteU8(dst, 0);
+#endif // USE_OSD_STICK_OVERLAY
+
+#endif // USE_OSD
         break;
     }
 
@@ -1279,11 +1299,41 @@ static bool mspProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst)
         sbufWriteU16(dst, flight3DConfig()->deadband3d_throttle);
         break;
 
-    case MSP_SENSOR_ALIGNMENT:
-        sbufWriteU8(dst, 0); // gyro_align
-        sbufWriteU8(dst, 0); // acc_align
+    case MSP_SENSOR_ALIGNMENT: {
+        uint8_t gyroAlignment;
+#ifdef USE_MULTI_GYRO
+        switch (gyroConfig()->gyro_to_use) {
+        case GYRO_CONFIG_USE_GYRO_2:
+            gyroAlignment = gyroDeviceConfig(1)->align;
+            break;
+        case GYRO_CONFIG_USE_GYRO_BOTH:
+            // for dual-gyro in "BOTH" mode we only read/write gyro 0
+        default:
+            gyroAlignment = gyroDeviceConfig(0)->align;
+            break;
+        }
+#else
+        gyroAlignment = gyroDeviceConfig(0)->align;
+#endif
+        sbufWriteU8(dst, gyroAlignment);
+        sbufWriteU8(dst, gyroAlignment);  // Starting with 4.0 gyro and acc alignment are the same 
         sbufWriteU8(dst, compassConfig()->mag_align);
+
+        // API 1.41 - Add multi-gyro indicator, selected gyro, and support for separate gyro 1 & 2 alignment
+#ifdef USE_MULTI_GYRO
+        sbufWriteU8(dst, 1);    // USE_MULTI_GYRO
+        sbufWriteU8(dst, gyroConfig()->gyro_to_use);
+        sbufWriteU8(dst, gyroDeviceConfig(0)->align);
+        sbufWriteU8(dst, gyroDeviceConfig(1)->align);
+#else
+        sbufWriteU8(dst, 0);
+        sbufWriteU8(dst, GYRO_CONFIG_USE_GYRO_1);
+        sbufWriteU8(dst, gyroDeviceConfig(0)->align);
+        sbufWriteU8(dst, ALIGN_DEFAULT);
+#endif
+
         break;
+    }
 
     case MSP_ADVANCED_CONFIG:
         sbufWriteU8(dst, gyroConfig()->gyro_sync_denom);
@@ -1837,11 +1887,43 @@ static mspResult_e mspProcessInCommand(uint8_t cmdMSP, sbuf_t *src)
     case MSP_SET_RESET_CURR_PID:
         resetPidProfile(currentPidProfile);
         break;
-    case MSP_SET_SENSOR_ALIGNMENT:
-        sbufReadU8(src); // gyro_align
-        sbufReadU8(src); // acc_align
+    case MSP_SET_SENSOR_ALIGNMENT: {
+        // maintain backwards compatibility for API < 1.41
+        const uint8_t gyroAlignment = sbufReadU8(src);
+        sbufReadU8(src);  // discard deprecated acc_align
         compassConfigMutable()->mag_align = sbufReadU8(src);
+
+        if (sbufBytesRemaining(src) >= 3) {
+            // API >= 1.41 - support the gyro_to_use and alignment for gyros 1 & 2
+#ifdef USE_MULTI_GYRO
+            gyroConfigMutable()->gyro_to_use = sbufReadU8(src);
+            gyroDeviceConfigMutable(0)->align = sbufReadU8(src);
+            gyroDeviceConfigMutable(1)->align = sbufReadU8(src);
+#else
+            sbufReadU8(src);  // unused gyro_to_use
+            gyroDeviceConfigMutable(0)->align = sbufReadU8(src);
+            sbufReadU8(src);  // unused gyro_2_sensor_align
+#endif
+        } else {
+            // maintain backwards compatibility for API < 1.41
+#ifdef USE_MULTI_GYRO
+            switch (gyroConfig()->gyro_to_use) {
+            case GYRO_CONFIG_USE_GYRO_2:
+                gyroDeviceConfigMutable(1)->align = gyroAlignment;
+                break;
+            case GYRO_CONFIG_USE_GYRO_BOTH:
+                // For dual-gyro in "BOTH" mode we'll only update gyro 0
+            default:
+                gyroDeviceConfigMutable(0)->align = gyroAlignment;
+                break;
+            }
+#else
+            gyroDeviceConfigMutable(0)->align = gyroAlignment;
+#endif
+
+        }
         break;
+    }
 
     case MSP_SET_ADVANCED_CONFIG:
         gyroConfigMutable()->gyro_sync_denom = sbufReadU8(src);
@@ -2536,6 +2618,28 @@ static mspResult_e mspCommonProcessInCommand(uint8_t cmdMSP, sbuf_t *src, mspPos
                 if (sbufBytesRemaining(src) >= 4) {
                     // 32bit version of enabled warnings (API >= 1.41)
                     osdConfigMutable()->enabledWarnings = sbufReadU32(src);
+                }
+
+                if (sbufBytesRemaining(src) >= 1) {
+                    // API >= 1.41
+                    // selected OSD profile
+#ifdef USE_OSD_PROFILES
+                    osdConfigMutable()->osdProfileIndex = sbufReadU8(src);
+#else
+                    sbufReadU8(src);
+#endif // USE_OSD_PROFILES
+                }
+
+                if (sbufBytesRemaining(src) >= 1) {
+                    // API >= 1.41
+                    // OSD stick overlay mode
+
+#ifdef USE_OSD_STICK_OVERLAY
+                    osdConfigMutable()->overlay_radio_mode = sbufReadU8(src);
+#else
+                    sbufReadU8(src);
+#endif // USE_OSD_STICK_OVERLAY
+
                 }
 #endif
             } else if ((int8_t)addr == -2) {
