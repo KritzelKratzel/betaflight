@@ -422,7 +422,11 @@ void init(void)
 
 #ifdef USE_SPI
     spiPinConfigure(spiPinConfig(0));
+#endif
 
+    sensorsPreInit();
+
+#ifdef USE_SPI
     spiPreinit();
 
 #ifdef USE_SPI_DEVICE_1
@@ -534,7 +538,9 @@ void init(void)
     // so we are ready to call validateAndFixGyroConfig(), pidInit(), and setAccelerationFilter()
     validateAndFixGyroConfig();
     pidInit(currentPidProfile);
+#ifdef USE_ACC
     accInitFilters();
+#endif
 
 #ifdef USE_PID_AUDIO
     pidAudioInit();
@@ -645,6 +651,8 @@ void init(void)
 #ifdef USE_LED_STRIP
     ledStripInit();
 
+    delayMicroseconds(50);
+    
     if (featureIsEnabled(FEATURE_LED_STRIP)) {
         ledStripEnable();
     }
@@ -696,9 +704,11 @@ void init(void)
     blackboxInit();
 #endif
 
+#ifdef USE_ACC
     if (mixerConfig()->mixerMode == MIXER_GIMBAL) {
         accSetCalibrationCycles(CALIBRATING_ACC_CYCLES);
     }
+#endif
     gyroStartCalibration(false);
 #ifdef USE_BARO
     baroSetCalibrationCycles(CALIBRATING_BARO_CYCLES);

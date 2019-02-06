@@ -403,6 +403,23 @@ static void cliPrintCorruptMessage(int value)
     cliPrintf("%d ###CORRUPTED CONFIG###", value);
 }
 
+static void getMinMax(const clivalue_t *var, int *min, int *max)
+{
+    switch (var->type & VALUE_TYPE_MASK) {
+    case VAR_UINT8:
+    case VAR_UINT16:
+        *min = var->config.minmaxUnsigned.min;
+        *max = var->config.minmaxUnsigned.max;
+
+        break;
+    default:
+        *min = var->config.minmax.min;
+        *max = var->config.minmax.max;
+
+        break;
+    }
+}
+
 static void printValuePointer(const clivalue_t *var, const void *valuePointer, bool full)
 {
     if ((var->type & VALUE_MODE_MASK) == MODE_ARRAY) {
@@ -440,39 +457,48 @@ static void printValuePointer(const clivalue_t *var, const void *valuePointer, b
         switch (var->type & VALUE_TYPE_MASK) {
         case VAR_UINT8:
             value = *(uint8_t *)valuePointer;
-            break;
 
+            break;
         case VAR_INT8:
             value = *(int8_t *)valuePointer;
-            break;
 
+            break;
         case VAR_UINT16:
+            value = *(uint16_t *)valuePointer;
+
+            break;
         case VAR_INT16:
             value = *(int16_t *)valuePointer;
+
             break;
         case VAR_UINT32:
             value = *(uint32_t *)valuePointer;
+
             break;
         }
 
         switch (var->type & VALUE_MODE_MASK) {
         case MODE_DIRECT:
             if ((var->type & VALUE_TYPE_MASK) == VAR_UINT32) {
-                if ((uint32_t) value > var->config.u32_max) {
+                if ((uint32_t) value > var->config.u32Max) {
                     cliPrintCorruptMessage(value);
                 } else {
                     cliPrintf("%d", value);
                     if (full) {
-                        cliPrintf(" 0 %d", var->config.u32_max);
+                        cliPrintf(" 0 %d", var->config.u32Max);
                     }
                 }
             } else {
-                if ((value < var->config.minmax.min) || (value > var->config.minmax.max)) {
+                int min;
+                int max;
+                getMinMax(var, &min, &max);
+
+                if ((value < min) || (value > max)) {
                     cliPrintCorruptMessage(value);
                 } else {
                     cliPrintf("%d", value);
                     if (full) {
-                        cliPrintf(" %d %d", var->config.minmax.min, var->config.minmax.max);
+                        cliPrintf(" %d %d", min, max);
                     }
                 }
             }
@@ -518,7 +544,7 @@ static bool valuePtrEqualsDefault(const clivalue_t *var, const void *ptr, const 
             break;
 
         case VAR_UINT16:
-            result = result && (((int16_t *)ptr)[i] & mask) == (((int16_t *)ptrDefault)[i] & mask);
+            result = result && (((uint16_t *)ptr)[i] & mask) == (((uint16_t *)ptrDefault)[i] & mask);
             break;
         case VAR_INT16:
             result = result && ((int16_t *)ptr)[i] == ((int16_t *)ptrDefault)[i];
@@ -621,10 +647,20 @@ static void cliPrintVarRange(const clivalue_t *var)
 {
     switch (var->type & VALUE_MODE_MASK) {
     case (MODE_DIRECT): {
-        if ((var->type & VALUE_TYPE_MASK) == VAR_UINT32) {
-            cliPrintLinef("Allowed range: %d - %d", 0, var->config.u32_max);
-        } else {
+        switch (var->type & VALUE_TYPE_MASK) {
+        case VAR_UINT32:
+            cliPrintLinef("Allowed range: %d - %d", 0, var->config.u32Max);
+
+            break;
+        case VAR_UINT8:
+        case VAR_UINT16:
+            cliPrintLinef("Allowed range: %d - %d", var->config.minmaxUnsigned.min, var->config.minmaxUnsigned.max);
+
+            break;
+        default:
             cliPrintLinef("Allowed range: %d - %d", var->config.minmax.min, var->config.minmax.max);
+
+            break;
         }
     }
     break;
@@ -705,6 +741,9 @@ static void cliSetVar(const clivalue_t *var, const uint32_t value)
             break;
 
         case VAR_UINT16:
+            *(uint16_t *)ptr = value;
+            break;
+
         case VAR_INT16:
             *(int16_t *)ptr = value;
             break;
@@ -903,7 +942,7 @@ static void printAux(uint8_t dumpMask, const modeActivationCondition_t *modeActi
         bool equalsDefault = false;
         if (defaultModeActivationConditions) {
             const modeActivationCondition_t *macDefault = &defaultModeActivationConditions[i];
-            equalsDefault = !memcmp(mac, macDefault, sizeof(*mac));
+            equalsDefault = !isModeActivationConditionConfigured(mac, macDefault);
             const box_t *box = findBoxByBoxId(macDefault->modeId);
             const box_t *linkedTo = findBoxByBoxId(macDefault->linkedTo);
             if (box) {
@@ -989,6 +1028,7 @@ static void cliAux(char *cmdline)
             } else if (validArgumentCount != 6) {
                 memset(mac, 0, sizeof(modeActivationCondition_t));
             }
+            analyzeModeActivationConditions();
             cliPrintLinef( "aux %u %u %u %u %u %u %u",
                 i,
                 mac->modeId,
@@ -1609,14 +1649,14 @@ static void cliLed(char *cmdline)
     const char *ptr;
 
     if (isEmpty(cmdline)) {
-        printLed(DUMP_MASTER, ledStripConfig()->ledConfigs, NULL);
+        printLed(DUMP_MASTER, ledStripStatusModeConfig()->ledConfigs, NULL);
     } else {
         ptr = cmdline;
         i = atoi(ptr);
         if (i < LED_MAX_STRIP_LENGTH) {
             ptr = nextArg(cmdline);
             if (parseLedStripConfig(i, ptr)) {
-                generateLedConfig((ledConfig_t *)&ledStripConfig()->ledConfigs[i], ledConfigBuffer, sizeof(ledConfigBuffer));
+                generateLedConfig((ledConfig_t *)&ledStripStatusModeConfig()->ledConfigs[i], ledConfigBuffer, sizeof(ledConfigBuffer));
                 cliDumpPrintLinef(0, false, format, i, ledConfigBuffer);
             } else {
                 cliShowParseError();
@@ -1646,14 +1686,14 @@ static void cliColor(char *cmdline)
 {
     const char *format = "color %u %d,%u,%u";
     if (isEmpty(cmdline)) {
-        printColor(DUMP_MASTER, ledStripConfig()->colors, NULL);
+        printColor(DUMP_MASTER, ledStripStatusModeConfig()->colors, NULL);
     } else {
         const char *ptr = cmdline;
         const int i = atoi(ptr);
         if (i < LED_CONFIGURABLE_COLOR_COUNT) {
             ptr = nextArg(cmdline);
             if (parseColor(i, ptr)) {
-                const hsvColor_t *color = &ledStripConfig()->colors[i];
+                const hsvColor_t *color = &ledStripStatusModeConfig()->colors[i];
                 cliDumpPrintLinef(0, false, format, i, color->h, color->s, color->v);
             } else {
                 cliShowParseError();
@@ -1664,12 +1704,12 @@ static void cliColor(char *cmdline)
     }
 }
 
-static void printModeColor(uint8_t dumpMask, const ledStripConfig_t *ledStripConfig, const ledStripConfig_t *defaultLedStripConfig)
+static void printModeColor(uint8_t dumpMask, const ledStripStatusModeConfig_t *ledStripStatusModeConfig, const ledStripStatusModeConfig_t *defaultLedStripConfig)
 {
     const char *format = "mode_color %u %u %u";
     for (uint32_t i = 0; i < LED_MODE_COUNT; i++) {
         for (uint32_t j = 0; j < LED_DIRECTION_COUNT; j++) {
-            int colorIndex = ledStripConfig->modeColors[i].color[j];
+            int colorIndex = ledStripStatusModeConfig->modeColors[i].color[j];
             bool equalsDefault = false;
             if (defaultLedStripConfig) {
                 int colorIndexDefault = defaultLedStripConfig->modeColors[i].color[j];
@@ -1681,7 +1721,7 @@ static void printModeColor(uint8_t dumpMask, const ledStripConfig_t *ledStripCon
     }
 
     for (uint32_t j = 0; j < LED_SPECIAL_COLOR_COUNT; j++) {
-        const int colorIndex = ledStripConfig->specialColors.color[j];
+        const int colorIndex = ledStripStatusModeConfig->specialColors.color[j];
         bool equalsDefault = false;
         if (defaultLedStripConfig) {
             const int colorIndexDefault = defaultLedStripConfig->specialColors.color[j];
@@ -1691,7 +1731,7 @@ static void printModeColor(uint8_t dumpMask, const ledStripConfig_t *ledStripCon
         cliDumpPrintLinef(dumpMask, equalsDefault, format, LED_SPECIAL, j, colorIndex);
     }
 
-    const int ledStripAuxChannel = ledStripConfig->ledstrip_aux_channel;
+    const int ledStripAuxChannel = ledStripStatusModeConfig->ledstrip_aux_channel;
     bool equalsDefault = false;
     if (defaultLedStripConfig) {
         const int ledStripAuxChannelDefault = defaultLedStripConfig->ledstrip_aux_channel;
@@ -1704,7 +1744,7 @@ static void printModeColor(uint8_t dumpMask, const ledStripConfig_t *ledStripCon
 static void cliModeColor(char *cmdline)
 {
     if (isEmpty(cmdline)) {
-        printModeColor(DUMP_MASTER, ledStripConfig(), NULL);
+        printModeColor(DUMP_MASTER, ledStripStatusModeConfig(), NULL);
     } else {
         enum {MODE = 0, FUNCTION, COLOR, ARGS_COUNT};
         int args[ARGS_COUNT];
@@ -3293,6 +3333,8 @@ static void cliProfile(char *cmdline)
         if (i >= 0 && i < MAX_PROFILE_COUNT) {
             changePidProfile(i);
             cliProfile("");
+        } else {
+            cliPrintErrorLinef("PROFILE OUTSIDE OF [0..%d]", MAX_PROFILE_COUNT - 1);
         }
     }
 }
@@ -3307,6 +3349,8 @@ static void cliRateProfile(char *cmdline)
         if (i >= 0 && i < CONTROL_RATE_PROFILE_COUNT) {
             changeControlRateProfile(i);
             cliRateProfile("");
+        } else {
+            cliPrintErrorLinef("RATE PROFILE OUTSIDE OF [0..%d]", CONTROL_RATE_PROFILE_COUNT - 1);
         }
     }
 }
@@ -3502,14 +3546,18 @@ STATIC_UNIT_TESTED void cliSet(char *cmdline)
                         if ((val->type & VALUE_TYPE_MASK) == VAR_UINT32) {
                             uint32_t value = strtol(eqptr, NULL, 10);
 
-                            if (value <= val->config.u32_max) {
+                            if (value <= val->config.u32Max) {
                                 cliSetVar(val, value);
                                 valueChanged = true;
                             }
                         } else {
-                            int16_t value = atoi(eqptr);
+                            int value = atoi(eqptr);
 
-                            if (value >= val->config.minmax.min && value <= val->config.minmax.max) {
+                            int min;
+                            int max;
+                            getMinMax(val, &min, &max);
+
+                            if (value >= min && value <= max) {
                                 cliSetVar(val, value);
                                 valueChanged = true;
                             }
@@ -4691,13 +4739,13 @@ static void printConfig(char *cmdline, bool doDiff)
 
 #ifdef USE_LED_STRIP_STATUS_MODE
         cliPrintHashLine("led");
-        printLed(dumpMask, ledStripConfig_Copy.ledConfigs, ledStripConfig()->ledConfigs);
+        printLed(dumpMask, ledStripStatusModeConfig_Copy.ledConfigs, ledStripStatusModeConfig()->ledConfigs);
 
         cliPrintHashLine("color");
-        printColor(dumpMask, ledStripConfig_Copy.colors, ledStripConfig()->colors);
+        printColor(dumpMask, ledStripStatusModeConfig_Copy.colors, ledStripStatusModeConfig()->colors);
 
         cliPrintHashLine("mode_color");
-        printModeColor(dumpMask, &ledStripConfig_Copy, ledStripConfig());
+        printModeColor(dumpMask, &ledStripStatusModeConfig_Copy, ledStripStatusModeConfig());
 #endif
 
         cliPrintHashLine("aux");
