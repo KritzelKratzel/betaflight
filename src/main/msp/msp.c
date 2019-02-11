@@ -268,7 +268,7 @@ static void mspRebootFn(serialPort_t *serialPort)
 #endif
     default:
 
-        break;
+        return;
     }
 
     // control should never return here.
@@ -1547,7 +1547,7 @@ static mspResult_e mspFcProcessOutCommandWithArg(uint8_t cmdMSP, sbuf_t *src, sb
 
             if (rebootMode >= MSP_REBOOT_COUNT
 #if !defined(USE_USB_MSC)
-                || rebootMode == MSP_REBOOT_MSC
+                || rebootMode == MSP_REBOOT_MSC || rebootMode == MSP_REBOOT_MSC_UTC
 #endif
                 ) {
                 return MSP_RESULT_ERROR;
@@ -2672,6 +2672,7 @@ static mspResult_e mspCommonProcessInCommand(uint8_t cmdMSP, sbuf_t *src, mspPos
                     // selected OSD profile
 #ifdef USE_OSD_PROFILES
                     osdConfigMutable()->osdProfileIndex = sbufReadU8(src);
+                    setOsdProfile(osdConfig()->osdProfileIndex);
 #else
                     sbufReadU8(src);
 #endif // USE_OSD_PROFILES
