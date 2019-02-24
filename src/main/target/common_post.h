@@ -272,3 +272,8 @@
 #undef USE_GPS_RESCUE
 #undef USE_ACRO_TRAINER
 #endif
+
+#ifndef USE_BEEPER
+#undef BEEPER_PIN
+#undef BEEPER_PWM_HZ
+#endif
