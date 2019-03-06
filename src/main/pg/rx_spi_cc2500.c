@@ -18,42 +18,32 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
-
 #include "platform.h"
 
-#ifdef USE_BRUSHED_ESC_AUTODETECT
-
-#include "build/build_config.h"
+#if defined(USE_RX_CC2500)
 
 #include "drivers/io.h"
-#include "drivers/time.h"
-#include "drivers/timer.h"
 
-#include "pwm_esc_detect.h"
+#include "pg/pg.h"
+#include "pg/pg_ids.h"
 
-static uint8_t hardwareMotorType = MOTOR_UNKNOWN;
+#include "rx_spi_cc2500.h"
 
-void detectBrushedESC(ioTag_t motorIoTag)
-{
-    IO_t motorDetectPin = IOGetByTag(motorIoTag);
-    IOInit(motorDetectPin, OWNER_SYSTEM, 0);
-    IOConfigGPIO(motorDetectPin, IOCFG_IPU);
+PG_REGISTER_WITH_RESET_TEMPLATE(rxCc2500SpiConfig_t, rxCc2500SpiConfig, PG_RX_CC2500_SPI_CONFIG, 1);
 
-    delayMicroseconds(10);  // allow configuration to settle
-
-    // Check presence of brushed ESC's
-    if (IORead(motorDetectPin)) {
-        hardwareMotorType = MOTOR_BRUSHLESS;
-    } else {
-        hardwareMotorType = MOTOR_BRUSHED;
-    }
-}
-
-uint8_t getDetectedMotorType(void)
-{
-    return hardwareMotorType;
-}
+PG_RESET_TEMPLATE(rxCc2500SpiConfig_t, rxCc2500SpiConfig,
+    .autoBind = false,
+    .bindTxId = {0, 0},
+    .bindOffset = 0,
+    .bindHopData = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    .rxNum = 0,
+    .a1Source = FRSKY_SPI_A1_SOURCE_VBAT,
+    .chipDetectEnabled = true,
+    .txEnIoTag = IO_TAG(RX_CC2500_SPI_TX_EN_PIN),
+    .lnaEnIoTag = IO_TAG(RX_CC2500_SPI_LNA_EN_PIN),
+    .antSelIoTag = IO_TAG(RX_CC2500_SPI_ANT_SEL_PIN),
+);
 #endif

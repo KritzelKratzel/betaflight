@@ -146,6 +146,14 @@
 #define USE_RX_CC2500
 #endif
 
+#if !defined(USE_RX_CC2500)
+#undef USE_RX_CC2500_SPI_PA_LNA
+#endif
+
+#if !defined(USE_RX_CC2500_SPI_PA_LNA)
+#undef USE_RX_CC2500_SPI_DIVERSITY
+#endif
+
 // Burst dshot to default off if not configured explicitly by target
 #ifndef ENABLE_DSHOT_DMAR
 #define ENABLE_DSHOT_DMAR false
@@ -286,4 +294,13 @@
 #undef USED_TIMERS
 #else
 #undef USE_UNIFIED_TARGET
+#endif
+
+#if !defined(USE_RANGEFINDER)
+#undef USE_RANGEFINDER_HCSR04
+#undef USE_RANGEFINDER_SRF10
+#undef USE_RANGEFINDER_HCSR04_I2C
+#undef USE_RANGEFINDER_VL53L0X
+#undef USE_RANGEFINDER_UIB
+#undef USE_RANGEFINDER_TF
 #endif
