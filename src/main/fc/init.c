@@ -32,7 +32,7 @@
 #include "common/axis.h"
 #include "common/color.h"
 #include "common/maths.h"
-#include "common/printf.h"
+#include "common/printf_serial.h"
 
 #include "config/config_eeprom.h"
 #include "config/feature.h"
@@ -209,39 +209,9 @@ static IO_t busSwitchResetPin        = IO_NONE;
 }
 #endif
 
-#ifdef USE_DSHOT_TELEMETRY
-void activateDshotTelemetry(struct dispatchEntry_s* self)
-{
-    if (!ARMING_FLAG(ARMED) && !isDshotTelemetryActive()) {
-        pwmWriteDshotCommand(ALL_MOTORS, getMotorCount(), DSHOT_CMD_SIGNAL_LINE_CONTINUOUS_ERPM_TELEMETRY, false);
-        dispatchAdd(self, 1e6); // check again in 1 second
-    }
-}
-
-dispatchEntry_t activateDshotTelemetryEntry =
-{
-    activateDshotTelemetry, 0, NULL, false
-};
-#endif
 
 void init(void)
 {
-#ifdef USE_ITCM_RAM
-    /* Load functions into ITCM RAM */
-    extern uint8_t tcm_code_start;
-    extern uint8_t tcm_code_end;
-    extern uint8_t tcm_code;
-    memcpy(&tcm_code_start, &tcm_code, (size_t) (&tcm_code_end - &tcm_code_start));
-#endif
-
-#ifdef USE_FAST_RAM
-    /* Load FAST_RAM variable intializers into DTCM RAM */
-    extern uint8_t _sfastram_data;
-    extern uint8_t _efastram_data;
-    extern uint8_t _sfastram_idata;
-    memcpy(&_sfastram_data, &_sfastram_idata, (size_t) (&_efastram_data - &_sfastram_data));
-#endif
-
 #ifdef USE_HAL_DRIVER
     HAL_Init();
 #endif
@@ -262,7 +232,9 @@ void init(void)
     }
 #endif
 
-    printfSupportInit();
+#ifdef SERIAL_PORT_COUNT
+    printfSerialInit();
+#endif
 
     systemInit();
 
@@ -807,13 +779,6 @@ void init(void)
     pwmEnableMotors();
 
     setArmingDisabled(ARMING_DISABLED_BOOT_GRACE_TIME);
-
-#ifdef USE_DSHOT_TELEMETRY
-    if (motorConfig()->dev.useDshotTelemetry) {
-        dispatchEnable();
-        dispatchAdd(&activateDshotTelemetryEntry, 5000000);
-    }
-#endif
 
     fcTasksInit();
 

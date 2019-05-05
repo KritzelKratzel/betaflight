@@ -166,15 +166,15 @@ static int getEscRpm(int i)
     if (motorConfig()->dev.useDshotTelemetry) {
         return 100.0f / (motorConfig()->motorPoleCount / 2.0f) * getDshotTelemetry(i);
     }
-#endif 
+#endif
     if (featureIsEnabled(FEATURE_ESC_SENSOR)) {
         return calcEscRpm(getEscSensorData(i)->rpm);
-    } else { 
+    } else {
         return 0;
     }
 }
 
-static int getEscRpmFreq(int i) 
+static int getEscRpmFreq(int i)
 {
     return getEscRpm(i) / 60;
 }
@@ -187,7 +187,7 @@ static void renderOsdEscRpmOrFreq(getEscRpmOrFreqFnPtr escFnPtr, osdElementParms
         char rpmStr[6];
         const int rpm = MIN((*escFnPtr)(i),99999);
         const int len = tfp_sprintf(rpmStr, "%d", rpm);
-        rpmStr[len] = '\0'; 
+        rpmStr[len] = '\0';
         displayWrite(element->osdDisplayPort, x, y + i, rpmStr);
     }
     element->drawElement = false;
@@ -296,6 +296,8 @@ static char osdGetTimerSymbol(osd_timer_source_e src)
     case OSD_TIMER_SRC_TOTAL_ARMED:
     case OSD_TIMER_SRC_LAST_ARMED:
         return SYM_FLY_M;
+    case OSD_TIMER_SRC_ON_OR_ARMED:
+        return ARMING_FLAG(ARMED) ? SYM_FLY_M : SYM_ON_M;
     default:
         return ' ';
     }
@@ -312,6 +314,8 @@ static timeUs_t osdGetTimerValue(osd_timer_source_e src)
         statistic_t *stats = osdGetStats();
         return stats->armed_time;
     }
+    case OSD_TIMER_SRC_ON_OR_ARMED:
+        return ARMING_FLAG(ARMED) ? osdFlyTime : micros();
     default:
         return 0;
     }
@@ -472,7 +476,7 @@ static void osdElementAltitude(osdElementParms_t *element)
 static void osdElementAngleRollPitch(osdElementParms_t *element)
 {
     const int angle = (element->item == OSD_PITCH_ANGLE) ? attitude.values.pitch : attitude.values.roll;
-    tfp_sprintf(element->buff, "%c%02d.%01d", angle < 0 ? '-' : ' ', abs(angle / 10), abs(angle % 10));
+    tfp_sprintf(element->buff, "%c%c%02d.%01d", (element->item == OSD_PITCH_ANGLE) ? SYM_PITCH : SYM_ROLL , angle < 0 ? '-' : ' ', abs(angle / 10), abs(angle % 10));
 }
 #endif
 
@@ -526,7 +530,7 @@ static void osdElementCompassBar(osdElementParms_t *element)
 #ifdef USE_ADC_INTERNAL
 static void osdElementCoreTemperature(osdElementParms_t *element)
 {
-    tfp_sprintf(element->buff, "%3d%c", osdConvertTemperatureToSelectedUnit(getCoreTemperatureCelsius()), osdGetTemperatureSymbolForSelectedUnit());
+    tfp_sprintf(element->buff, "C%c%3d%c", SYM_TEMPERATURE, osdConvertTemperatureToSelectedUnit(getCoreTemperatureCelsius()), osdGetTemperatureSymbolForSelectedUnit());
 }
 #endif // USE_ADC_INTERNAL
 
@@ -647,7 +651,7 @@ static void osdElementDisplayName(osdElementParms_t *element)
 static void osdElementEscTemperature(osdElementParms_t *element)
 {
     if (featureIsEnabled(FEATURE_ESC_SENSOR)) {
-        tfp_sprintf(element->buff, "%3d%c", osdConvertTemperatureToSelectedUnit(osdEscDataCombined->temperature), osdGetTemperatureSymbolForSelectedUnit());
+        tfp_sprintf(element->buff, "E%c%3d%c", SYM_TEMPERATURE, osdConvertTemperatureToSelectedUnit(osdEscDataCombined->temperature), osdGetTemperatureSymbolForSelectedUnit());
     }
 }
 #endif // USE_ESC_SENSOR
@@ -750,14 +754,12 @@ static void osdElementGpsHomeDistance(osdElementParms_t *element)
 
 static void osdElementGpsLatitude(osdElementParms_t *element)
 {
-    // The SYM_LAT symbol in the actual font contains only blank, so we use the SYM_ARROW_NORTH
-    osdFormatCoordinate(element->buff, SYM_ARROW_NORTH, gpsSol.llh.lat);
+    osdFormatCoordinate(element->buff, SYM_LAT, gpsSol.llh.lat);
 }
 
 static void osdElementGpsLongitude(osdElementParms_t *element)
 {
-    // The SYM_LON symbol in the actual font contains only blank, so we use the SYM_ARROW_EAST
-    osdFormatCoordinate(element->buff, SYM_ARROW_EAST, gpsSol.llh.lon);
+    osdFormatCoordinate(element->buff, SYM_LON, gpsSol.llh.lon);
 }
 
 static void osdElementGpsSats(osdElementParms_t *element)
@@ -806,11 +808,11 @@ static void osdElementLogStatus(osdElementParms_t *element)
 {
     if (IS_RC_MODE_ACTIVE(BOXBLACKBOX)) {
         if (!isBlackboxDeviceWorking()) {
-            tfp_sprintf(element->buff, "L-");
+            tfp_sprintf(element->buff, "%c!", SYM_BBLOG);
         } else if (isBlackboxDeviceFull()) {
-            tfp_sprintf(element->buff, "L>");
+            tfp_sprintf(element->buff, "%c>", SYM_BBLOG);
         } else {
-            tfp_sprintf(element->buff, "L%d", blackboxGetLogNumber());
+            tfp_sprintf(element->buff, "%c%d", SYM_BBLOG, blackboxGetLogNumber());
         }
     }
 }
@@ -846,8 +848,14 @@ static void osdElementMainBatteryUsage(osdElementParms_t *element)
 
 static void osdElementMainBatteryVoltage(osdElementParms_t *element)
 {
+    const int batteryVoltage = (getBatteryVoltage() + 5) / 10;
+
     element->buff[0] = osdGetBatterySymbol(getBatteryAverageCellVoltage());
-    tfp_sprintf(element->buff + 1, "%2d.%02d%c", getBatteryVoltage() / 100, getBatteryVoltage() % 100, SYM_VOLT);
+    if (batteryVoltage >= 100) {
+        tfp_sprintf(element->buff + 1, "%d.%d%c", batteryVoltage / 10, batteryVoltage % 10, SYM_VOLT);
+    } else {
+        tfp_sprintf(element->buff + 1, "%d.%d0%c", batteryVoltage / 10, batteryVoltage % 10, SYM_VOLT);
+    }
 }
 
 static void osdElementMotorDiagnostics(osdElementParms_t *element)
@@ -1020,7 +1028,7 @@ static void osdElementVtxChannel(osdElementParms_t *element)
 
 static void osdElementWarnings(osdElementParms_t *element)
 {
-#define OSD_WARNINGS_MAX_SIZE 11
+#define OSD_WARNINGS_MAX_SIZE 12
 #define OSD_FORMAT_MESSAGE_BUFFER_SIZE (OSD_WARNINGS_MAX_SIZE + 1)
 
     STATIC_ASSERT(OSD_FORMAT_MESSAGE_BUFFER_SIZE <= OSD_ELEMENT_BUFFER_LENGTH, osd_warnings_size_exceeds_buffer_size);
@@ -1112,6 +1120,22 @@ static void osdElementWarnings(osdElementParms_t *element)
     }
 #endif // USE_LAUNCH_CONTROL
 
+    // RSSI
+    if (osdWarnGetState(OSD_WARNING_RSSI) && (getRssiPercent() < osdConfig()->rssi_alarm)) {
+        osdFormatMessage(element->buff, OSD_FORMAT_MESSAGE_BUFFER_SIZE, "RSSI LOW");
+        SET_BLINK(OSD_WARNINGS);
+        return;
+    }
+
+#ifdef USE_RX_LINK_QUALITY_INFO
+    // Link Quality
+    if (osdWarnGetState(OSD_WARNING_LINK_QUALITY) && (rxGetLinkQualityPercent() < osdConfig()->link_quality_alarm)) {
+        osdFormatMessage(element->buff, OSD_FORMAT_MESSAGE_BUFFER_SIZE, "LINK QUALITY");
+        SET_BLINK(OSD_WARNINGS);
+        return;
+    }
+#endif // USE_RX_LINK_QUALITY_INFO
+
     if (osdWarnGetState(OSD_WARNING_BATTERY_CRITICAL) && batteryState == BATTERY_CRITICAL) {
         osdFormatMessage(element->buff, OSD_FORMAT_MESSAGE_BUFFER_SIZE, " LAND NOW");
         SET_BLINK(OSD_WARNINGS);
@@ -1155,7 +1179,7 @@ static void osdElementWarnings(osdElementParms_t *element)
     const int16_t coreTemperature = getCoreTemperatureCelsius();
     if (osdWarnGetState(OSD_WARNING_CORE_TEMPERATURE) && coreTemperature >= osdConfig()->core_temp_alarm) {
         char coreTemperatureWarningMsg[OSD_FORMAT_MESSAGE_BUFFER_SIZE];
-        tfp_sprintf(coreTemperatureWarningMsg, "CORE: %3d%c", osdConvertTemperatureToSelectedUnit(coreTemperature), osdGetTemperatureSymbolForSelectedUnit());
+        tfp_sprintf(coreTemperatureWarningMsg, "CORE %c: %3d%c", SYM_TEMPERATURE, osdConvertTemperatureToSelectedUnit(coreTemperature), osdGetTemperatureSymbolForSelectedUnit());
 
         osdFormatMessage(element->buff, OSD_FORMAT_MESSAGE_BUFFER_SIZE, coreTemperatureWarningMsg);
         SET_BLINK(OSD_WARNINGS);
@@ -1280,7 +1304,9 @@ static const uint8_t osdElementDisplayOrder[] = {
     OSD_MAIN_BATT_USAGE,
     OSD_DISARMED,
     OSD_NUMERICAL_HEADING,
+#ifdef USE_VARIO
     OSD_NUMERICAL_VARIO,
+#endif
     OSD_COMPASS_BAR,
     OSD_ANTI_GRAVITY,
 #ifdef USE_BLACKBOX
@@ -1440,7 +1466,7 @@ void osdAnalyzeActiveElements(void)
         osdAddActiveElement(OSD_FLIGHT_DIST);
     }
 #endif // GPS
-#ifdef USE_ESC_SENSOR  	
+#ifdef USE_ESC_SENSOR
     if (featureIsEnabled(FEATURE_ESC_SENSOR)) {
         osdAddActiveElement(OSD_ESC_TMP);
     }
@@ -1517,6 +1543,14 @@ void osdUpdateAlarms(void)
     } else {
         CLR_BLINK(OSD_RSSI_VALUE);
     }
+
+#ifdef USE_RX_LINK_QUALITY_INFO
+    if (rxGetLinkQualityPercent() < osdConfig()->link_quality_alarm) {
+        SET_BLINK(OSD_LINK_QUALITY);
+    } else {
+        CLR_BLINK(OSD_LINK_QUALITY);
+    }
+#endif // USE_RX_LINK_QUALITY_INFO
 
     if (getBatteryState() == BATTERY_OK) {
         CLR_BLINK(OSD_MAIN_BATT_VOLTAGE);

@@ -52,6 +52,8 @@
 #include "io/serial.h"
 #include "io/gps.h"
 
+#include "osd/osd.h"
+
 #include "pg/beeper.h"
 #include "pg/beeper_dev.h"
 #include "pg/rx.h"
@@ -66,6 +68,8 @@
 #include "sensors/rpm_filter.h"
 
 #include "scheduler/scheduler.h"
+
+static bool configIsDirty; /* someone indicated that the config is modified and it is not yet saved */
 
 pidProfile_t *currentPidProfile;
 
@@ -315,9 +319,12 @@ static void validateAndFixConfig(void)
         || true
 #endif
         ) {
+
+#ifdef USE_GPS_RESCUE
         if (failsafeConfig()->failsafe_procedure == FAILSAFE_PROCEDURE_GPS_RESCUE) {
             failsafeConfigMutable()->failsafe_procedure = FAILSAFE_PROCEDURE_DROP_IT;
         }
+#endif
 
         if (isModeActivationConditionPresent(BOXGPSRESCUE)) {
             removeModeActivationCondition(BOXGPSRESCUE);
@@ -459,6 +466,16 @@ static void validateAndFixConfig(void)
     if (gyroConfig()->gyro_to_use == GYRO_CONFIG_USE_GYRO_BOTH && isRpmFilterEnabled()) {
         gyroConfigMutable()->gyro_to_use = GYRO_CONFIG_USE_GYRO_1;
     }
+#endif
+
+#if defined(USE_OSD)
+    for (int i = 0; i < OSD_TIMER_COUNT; i++) {
+         const uint16_t t = osdConfig()->timers[i];
+         if (OSD_TIMER_SRC(t) >= OSD_TIMER_SRC_COUNT ||
+                 OSD_TIMER_PRECISION(t) >= OSD_TIMER_PREC_COUNT) {
+             osdConfigMutable()->timers[i] = osdTimerDefault[i];
+         }
+     }
 #endif
 
 #if defined(TARGET_VALIDATECONFIG)
@@ -619,6 +636,7 @@ static void ValidateAndWriteConfigToEEPROM(bool setConfigured)
     writeConfigToEEPROM();
 
     resumeRxPwmPpmSignal();
+    configIsDirty = false;
 }
 
 void writeEEPROM(void)
@@ -658,6 +676,16 @@ void saveConfigAndNotify(void)
     beeperConfirmationBeeps(1);
 }
 
+void setConfigDirty(void)
+{
+    configIsDirty = true;
+}
+
+bool isConfigDirty(void)
+{
+    return configIsDirty;
+}
+
 void changePidProfileFromCellCount(uint8_t cellCount)
 {
     if (currentPidProfile->auto_profile_cell_count == cellCount || currentPidProfile->auto_profile_cell_count == AUTO_PROFILE_CELL_COUNT_STAY) {
@@ -690,6 +718,7 @@ void changePidProfile(uint8_t pidProfileIndex)
         loadPidProfile();
 
         pidInit(currentPidProfile);
+        initEscEndpoints();
     }
 
     beeperConfirmationBeeps(pidProfileIndex + 1);

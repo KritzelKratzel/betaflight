@@ -48,6 +48,7 @@
 #include "fc/rc_controls.h"
 #include "fc/runtime_config.h"
 
+#include "flight/mixer.h"
 #include "flight/pid.h"
 
 #include "pg/pg.h"
@@ -271,7 +272,7 @@ static uint8_t cmsx_launchControlGain;
 static long cmsx_launchControlOnEnter(void)
 {
     const pidProfile_t *pidProfile = pidProfiles(pidProfileIndex);
-    
+
     cmsx_launchControlMode  = pidProfile->launchControlMode;
     cmsx_launchControlAllowTriggerReset  = pidProfile->launchControlAllowTriggerReset;
     cmsx_launchControlThrottlePercent  = pidProfile->launchControlThrottlePercent;
@@ -337,7 +338,7 @@ static long cmsx_profileOtherOnEnter(void)
     pidProfileIndexString[1] = '0' + tmpPidProfileIndex;
 
     const pidProfile_t *pidProfile = pidProfiles(pidProfileIndex);
-    
+
     cmsx_feedForwardTransition  = pidProfile->feedForwardTransition;
 
     cmsx_angleStrength =     pidProfile->pid[PID_LEVEL].P;
@@ -385,6 +386,7 @@ static long cmsx_profileOtherOnExit(const OSD_Entry *self)
     }
 #endif
 
+    initEscEndpoints();
     return 0;
 }
 
