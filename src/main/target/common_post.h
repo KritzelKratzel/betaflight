@@ -94,6 +94,7 @@
 
 #if !defined(USE_SERIALRX_CRSF)
 #undef USE_TELEMETRY_CRSF
+#undef USE_CRSF_LINK_STATISTICS
 #endif
 
 #if !defined(USE_TELEMETRY_CRSF) || !defined(USE_CMS)
@@ -181,9 +182,15 @@
 #if defined(USE_FLASH_W25M512)
 #define USE_FLASH_W25M
 #define USE_FLASH_M25P16
+#define USE_FLASH_W25M
 #endif
 
-#if defined(USE_FLASH_M25P16)
+#if defined(USE_FLASH_W25M02G)
+#define USE_FLASH_W25N01G
+#define USE_FLASH_W25M
+#endif
+
+#if defined(USE_FLASH_M25P16) || defined(USE_FLASH_W25N01G)
 #define USE_FLASH_CHIP
 #endif
 
@@ -234,6 +241,10 @@
 #ifndef SPI_PREINIT_COUNT
 #define SPI_PREINIT_COUNT 16 // 2 x 8 (GYROx2, BARO, MAG, MAX, FLASHx2, RX)
 #endif
+#endif
+
+#ifndef USE_BLACKBOX
+#undef USE_USB_MSC
 #endif
 
 #if (!defined(USE_FLASHFS) || !defined(USE_RTC_TIME) || !defined(USE_USB_MSC))

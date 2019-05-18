@@ -68,6 +68,7 @@
 #include "drivers/vtx_common.h"
 
 #include "fc/config.h"
+#include "fc/controlrate_profile.h"
 #include "fc/core.h"
 #include "fc/rc_adjustments.h"
 #include "fc/rc_controls.h"
@@ -81,6 +82,7 @@
 #include "flight/imu.h"
 #include "flight/mixer.h"
 #include "flight/pid.h"
+#include "flight/rpm_filter.h"
 
 #include "io/beeper.h"
 #include "io/gps.h"
@@ -100,7 +102,6 @@
 #include "sensors/battery.h"
 #include "sensors/esc_sensor.h"
 #include "sensors/sensors.h"
-#include "sensors/rpm_filter.h"
 
 
 #define AH_SYMBOL_COUNT 9
@@ -210,9 +211,9 @@ static void osdFormatAltitudeString(char * buff, int32_t altitudeCm)
 {
     const int alt = osdGetMetersToSelectedUnit(altitudeCm) / 10;
 
-    tfp_sprintf(buff, "%5d %c", alt, osdGetMetersToSelectedUnitSymbol());
-    buff[5] = buff[4];
-    buff[4] = '.';
+    tfp_sprintf(buff, "%c%5d %c", SYM_ALTITUDE, alt, osdGetMetersToSelectedUnitSymbol());
+    buff[6] = buff[5];
+    buff[5] = '.';
 }
 
 #ifdef USE_GPS
@@ -647,6 +648,42 @@ static void osdElementDisplayName(osdElementParms_t *element)
     }
 }
 
+#ifdef USE_PROFILE_NAMES
+static void osdElementRateProfileName(osdElementParms_t *element)
+{
+    if (strlen(currentControlRateProfile->profileName) == 0) {
+        tfp_sprintf(element->buff, "RATE_%u", getCurrentControlRateProfileIndex() + 1);
+    } else {
+        unsigned i;
+        for (i = 0; i < MAX_PROFILE_NAME_LENGTH; i++) {
+            if (currentControlRateProfile->profileName[i]) {
+                element->buff[i] = toupper((unsigned char)currentControlRateProfile->profileName[i]);
+            } else {
+                break;
+            }
+        }
+        element->buff[i] = '\0';
+    }
+}
+
+static void osdElementPidProfileName(osdElementParms_t *element)
+{
+    if (strlen(currentPidProfile->profileName) == 0) {
+        tfp_sprintf(element->buff, "PID_%u", getCurrentPidProfileIndex() + 1);
+    } else {
+        unsigned i;
+        for (i = 0; i < MAX_PROFILE_NAME_LENGTH; i++) {
+            if (currentPidProfile->profileName[i]) {
+                element->buff[i] = toupper((unsigned char)currentPidProfile->profileName[i]);
+            } else {
+                break;
+            }
+        }
+        element->buff[i] = '\0';
+    }
+}
+#endif
+
 #ifdef USE_ESC_SENSOR
 static void osdElementEscTemperature(osdElementParms_t *element)
 {
@@ -742,13 +779,12 @@ static void osdElementGpsHomeDistance(osdElementParms_t *element)
 {
     if (STATE(GPS_FIX) && STATE(GPS_FIX_HOME)) {
         const int32_t distance = osdGetMetersToSelectedUnit(GPS_distanceToHome);
-        tfp_sprintf(element->buff, "%d%c", distance, osdGetMetersToSelectedUnitSymbol());
+        tfp_sprintf(element->buff, "%c%d%c", SYM_HOMEFLAG, distance, osdGetMetersToSelectedUnitSymbol());
     } else {
+        element->buff[0] = SYM_HOMEFLAG;
         // We use this symbol when we don't have a FIX
-        element->buff[0] = SYM_COLON;
-        // overwrite any previous distance with blanks
-        memset(element->buff + 1, SYM_BLANK, 6);
-        element->buff[7] = '\0';
+        element->buff[1] = SYM_COLON;
+        element->buff[2] = '\0';
     }
 }
 
@@ -1333,6 +1369,10 @@ static const uint8_t osdElementDisplayOrder[] = {
     OSD_STICK_OVERLAY_LEFT,
     OSD_STICK_OVERLAY_RIGHT,
 #endif
+#ifdef USE_PROFILE_NAMES
+    OSD_RATE_PROFILE_NAME,
+    OSD_PID_PROFILE_NAME,
+#endif
 };
 
 // Define the mapping between the OSD element id and the function to draw it
@@ -1428,6 +1468,11 @@ const osdElementDrawFn osdElementDrawFunction[OSD_ITEM_COUNT] = {
 #if defined(USE_RPM_FILTER) || defined(USE_ESC_SENSOR)
     [OSD_ESC_RPM_FREQ]            = osdElementEscRpmFreq,
 #endif
+#ifdef USE_PROFILE_NAMES
+    [OSD_RATE_PROFILE_NAME]       = osdElementRateProfileName,
+    [OSD_PID_PROFILE_NAME]        = osdElementPidProfileName,
+#endif
+
 };
 
 static void osdAddActiveElement(osd_items_e element)
