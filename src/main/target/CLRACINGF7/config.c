@@ -18,17 +18,15 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
-
+#include <stdbool.h>
 #include <stdint.h>
-
 #include "platform.h"
-#include "drivers/vtx_common.h"
+#ifdef USE_TARGET_CONFIG
+#include "pg/pinio.h"
+#include "pg/piniobox.h"
 
-bool _vtxStringFreq2Bandchan(uint16_t freq, uint8_t *pBand, uint8_t *pChannel);
-uint16_t _vtxStringBandchan2Freq(uint8_t band, uint8_t channel);
-
-const uint16_t * vtxStringFrequencyTable(void);
-const char ** vtxStringBandNames(void);
-const char ** vtxStringChannelNames(void);
-const char * vtxStringBandLetters(void);
+void targetConfiguration(void)
+{	
+    pinioBoxConfigMutable()->permanentId[0] = 39;
+}
+#endif
