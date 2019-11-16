@@ -40,13 +40,16 @@
 
 #include "config/feature.h"
 
+#include "drivers/dshot.h"
+#include "drivers/dshot_command.h"
 #include "drivers/light_led.h"
+#include "drivers/motor.h"
 #include "drivers/sound_beeper.h"
 #include "drivers/system.h"
 #include "drivers/time.h"
 #include "drivers/transponder_ir.h"
 
-#include "fc/config.h"
+#include "config/config.h"
 #include "fc/controlrate_profile.h"
 #include "fc/core.h"
 #include "fc/rc.h"
@@ -82,6 +85,7 @@
 
 #include "osd/osd.h"
 
+#include "pg/motor.h"
 #include "pg/pg.h"
 #include "pg/pg_ids.h"
 #include "pg/rx.h"
@@ -210,13 +214,75 @@ void resetArmingDisabled(void)
     lastArmingDisabledReason = 0;
 }
 
+#ifdef USE_ACC
+static bool accNeedsCalibration(void)
+{
+    if (sensors(SENSOR_ACC)) {
+
+        // Check to see if the ACC has already been calibrated
+        if (accelerometerConfig()->accZero.values.calibrationCompleted ||
+            accelerometerConfig()->accZero.values.roll != 0 ||
+            accelerometerConfig()->accZero.values.pitch != 0 ||
+            accelerometerConfig()->accZero.values.yaw != 0) {
+
+            return false;
+        }
+
+        // We've determined that there's a detected ACC that has not
+        // yet been calibrated. Check to see if anything is using the
+        // ACC that would be affected by the lack of calibration.
+
+        // Check for any configured modes that use the ACC
+        if (isModeActivationConditionPresent(BOXANGLE) ||
+            isModeActivationConditionPresent(BOXHORIZON) ||
+            isModeActivationConditionPresent(BOXGPSRESCUE) ||
+            isModeActivationConditionPresent(BOXCAMSTAB) ||
+            isModeActivationConditionPresent(BOXCALIB) ||
+            isModeActivationConditionPresent(BOXACROTRAINER)) {
+
+            return true;
+        }
+
+        // Launch Control only requires the ACC if a angle limit is set
+        if (isModeActivationConditionPresent(BOXLAUNCHCONTROL) && currentPidProfile->launchControlAngleLimit) {
+            return true;
+        }
+
+#ifdef USE_OSD
+        // Check for any enabled OSD elements that need the ACC
+        if (featureIsEnabled(FEATURE_OSD)) {
+            if (osdNeedsAccelerometer()) {
+                return true;
+            }
+        }
+#endif
+
+#ifdef USE_GPS_RESCUE
+        // Check if failsafe will use GPS Rescue
+        if (failsafeConfig()->failsafe_procedure == FAILSAFE_PROCEDURE_GPS_RESCUE) {
+            return true;
+        }
+#endif
+    }
+
+    return false;
+}
+#endif
+
 void updateArmingStatus(void)
 {
     if (ARMING_FLAG(ARMED)) {
         LED0_ON;
     } else {
         // Check if the power on arming grace time has elapsed
-        if ((getArmingDisableFlags() & ARMING_DISABLED_BOOT_GRACE_TIME) && (millis() >= systemConfig()->powerOnArmingGraceTime * 1000)) {
+        if ((getArmingDisableFlags() & ARMING_DISABLED_BOOT_GRACE_TIME) && (millis() >= systemConfig()->powerOnArmingGraceTime * 1000)
+#ifdef USE_DSHOT
+            // We also need to prevent arming until it's possible to send DSHOT commands.
+            // Otherwise if the initial arming is in crash-flip the motor direction commands
+            // might not be sent.
+            && dshotCommandsAreEnabled()
+#endif
+        ) {
             // If so, unset the grace time arming disable flag
             unsetArmingDisabled(ARMING_DISABLED_BOOT_GRACE_TIME);
         }
@@ -305,9 +371,25 @@ void updateArmingStatus(void)
         }
 #endif
 
+#ifdef USE_DSHOT_BITBANG
+        if (isDshotBitbangActive(&motorConfig()->dev) && dshotBitbangGetStatus() != DSHOT_BITBANG_STATUS_OK) {
+            setArmingDisabled(ARMING_DISABLED_DSHOT_BITBANG);
+        } else {
+            unsetArmingDisabled(ARMING_DISABLED_DSHOT_BITBANG);
+        }
+#endif
+
         if (IS_RC_MODE_ACTIVE(BOXPARALYZE)) {
             setArmingDisabled(ARMING_DISABLED_PARALYZE);
         }
+
+#ifdef USE_ACC
+        if (accNeedsCalibration()) {
+            setArmingDisabled(ARMING_DISABLED_ACC_CALIBRATION);
+        } else {
+            unsetArmingDisabled(ARMING_DISABLED_ACC_CALIBRATION);
+        }
+#endif
 
         if (!isUsingSticksForArming()) {
           /* Ignore ARMING_DISABLED_CALIBRATING if we are going to calibrate gyro on first arm */
@@ -368,7 +450,7 @@ void disarm(void)
         BEEP_OFF;
 #ifdef USE_DSHOT
         if (isMotorProtocolDshot() && flipOverAfterCrashActive && !featureIsEnabled(FEATURE_3D)) {
-            pwmWriteDshotCommand(ALL_MOTORS, getMotorCount(), DSHOT_CMD_SPIN_DIRECTION_NORMAL, false);
+            dshotCommandWrite(ALL_MOTORS, getMotorCount(), DSHOT_CMD_SPIN_DIRECTION_NORMAL, false);
         }
 #endif
         flipOverAfterCrashActive = false;
@@ -419,7 +501,7 @@ void tryArm(void)
             if (!(IS_RC_MODE_ACTIVE(BOXFLIPOVERAFTERCRASH) || (tryingToArm == ARMING_DELAYED_CRASHFLIP))) {
                 flipOverAfterCrashActive = false;
                 if (!featureIsEnabled(FEATURE_3D)) {
-                    pwmWriteDshotCommand(ALL_MOTORS, getMotorCount(), DSHOT_CMD_SPIN_DIRECTION_NORMAL, false);
+                    dshotCommandWrite(ALL_MOTORS, getMotorCount(), DSHOT_CMD_SPIN_DIRECTION_NORMAL, false);
                 }
             } else {
                 flipOverAfterCrashActive = true;
@@ -427,7 +509,7 @@ void tryArm(void)
                 runawayTakeoffCheckDisabled = false;
 #endif
                 if (!featureIsEnabled(FEATURE_3D)) {
-                    pwmWriteDshotCommand(ALL_MOTORS, getMotorCount(), DSHOT_CMD_SPIN_DIRECTION_REVERSED, false);
+                    dshotCommandWrite(ALL_MOTORS, getMotorCount(), DSHOT_CMD_SPIN_DIRECTION_REVERSED, false);
                 }
             }
         }
@@ -1005,6 +1087,7 @@ static FAST_CODE void subTaskPidController(timeUs_t currentTimeUs)
         && !runawayTakeoffCheckDisabled
         && !flipOverAfterCrashActive
         && !runawayTakeoffTemporarilyDisabled
+        && !FLIGHT_MODE(GPS_RESCUE_MODE)   // disable Runaway Takeoff triggering if GPS Rescue is active
         && (!featureIsEnabled(FEATURE_MOTOR_STOP) || airmodeIsEnabled() || (calculateThrottleStatus() != THROTTLE_LOW))) {
 
         if (((fabsf(pidData[FD_PITCH].Sum) >= RUNAWAY_TAKEOFF_PIDSUM_THRESHOLD)
@@ -1132,7 +1215,6 @@ static FAST_CODE_NOINLINE void subTaskRcCommand(timeUs_t currentTimeUs)
     }
 
     processRcCommand();
-
 }
 
 // Function for loop trigger

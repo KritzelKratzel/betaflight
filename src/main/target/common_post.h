@@ -24,10 +24,8 @@
 
 #include "build/version.h"
 
-// Targets with built-in vtx do not need external vtx
-#if defined(USE_VTX_RTC6705) && !defined(VTX_RTC6705_OPTIONAL)
-#undef USE_VTX_SMARTAUDIO
-#undef USE_VTX_TRAMP
+#if defined(USE_VTX_RTC6705_SOFTSPI)
+#define USE_VTX_RTC6705
 #endif
 
 #ifndef USE_DSHOT
@@ -142,6 +140,7 @@
 #undef USE_VTX_CONTROL
 #undef USE_VTX_TRAMP
 #undef USE_VTX_SMARTAUDIO
+#undef USE_VTX_TABLE
 #endif
 
 #if defined(USE_RX_FRSKY_SPI_D) || defined(USE_RX_FRSKY_SPI_X)
@@ -163,7 +162,7 @@
 
 // Burst dshot to default off if not configured explicitly by target
 #ifndef ENABLE_DSHOT_DMAR
-#define ENABLE_DSHOT_DMAR false
+#define ENABLE_DSHOT_DMAR DSHOT_DMAR_OFF
 #endif
 
 // Some target doesn't define USE_ADC which USE_ADC_INTERNAL depends on
@@ -228,10 +227,6 @@
 #define USE_RX_XN297
 #endif
 
-#ifdef USE_UNIFIED_TARGET
-#define USE_CONFIGURATION_STATE
-#endif
-
 // Setup crystal frequency on F4 for backward compatibility
 // Should be set to zero for generic targets to ensure USB is working
 // when unconfigured for targets with non-standard crystal.
@@ -257,7 +252,7 @@
 #undef USE_USB_MSC
 #endif
 
-#if (!defined(USE_FLASHFS) || !defined(USE_RTC_TIME) || !defined(USE_USB_MSC))
+#if (!defined(USE_FLASHFS) || !defined(USE_RTC_TIME) || !defined(USE_USB_MSC) || !defined(USE_PERSISTENT_OBJECTS))
 #undef USE_PERSISTENT_MSC_RTC
 #endif
 
@@ -265,6 +260,10 @@
 #undef  USE_SERIAL_4WAY_BLHELI_INTERFACE
 #elif !defined(USE_SERIAL_4WAY_BLHELI_INTERFACE) && (defined(USE_SERIAL_4WAY_BLHELI_BOOTLOADER) || defined(USE_SERIAL_4WAY_SK_BOOTLOADER))
 #define USE_SERIAL_4WAY_BLHELI_INTERFACE
+#endif
+
+#if !defined(USE_PWM_OUTPUT)
+#undef USE_SERIAL_4WAY_BLHELI_INTERFACE // implementation requires USE_PWM_OUTPUT to find motor outputs.
 #endif
 
 #if !defined(USE_LED_STRIP)
@@ -286,6 +285,7 @@
 
 #ifndef USE_DSHOT
 #undef USE_DSHOT_TELEMETRY
+#undef USE_DSHOT_BITBANG
 #endif
 
 #ifndef USE_DSHOT_TELEMETRY
@@ -345,7 +345,7 @@
 #undef USE_ESCSERIAL
 #endif
 
-#if defined(EEPROM_IN_RAM) || defined(EEPROM_IN_FILE) || defined(EEPROM_IN_EXTERNAL_FLASH) || defined(EEPROM_IN_SDCARD)
+#if defined(CONFIG_IN_RAM) || defined(CONFIG_IN_FILE) || defined(CONFIG_IN_EXTERNAL_FLASH) || defined(CONFIG_IN_SDCARD)
 #ifndef EEPROM_SIZE
 #define EEPROM_SIZE     4096
 #endif
@@ -353,13 +353,25 @@ extern uint8_t eepromData[EEPROM_SIZE];
 #define __config_start (*eepromData)
 #define __config_end (*ARRAYEND(eepromData))
 #else
-#ifndef EEPROM_IN_FLASH
-#define EEPROM_IN_FLASH
+#ifndef CONFIG_IN_FLASH
+#define CONFIG_IN_FLASH
 #endif
 extern uint8_t __config_start;   // configured via linker script when building binaries.
 extern uint8_t __config_end;
 #endif
 
-#if defined(USE_EXST)
+#if defined(USE_EXST) && !defined(RAMBASED)
 #define USE_FLASH_BOOT_LOADER
+#endif
+
+#if !defined(USE_RPM_FILTER)
+#undef USE_DYN_IDLE
+#endif
+
+#ifndef USE_ITERM_RELAX
+#undef USE_ABSOLUTE_CONTROL
+#endif
+
+#if defined(USE_CUSTOM_DEFAULTS)
+#define USE_CUSTOM_DEFAULTS_ADDRESS
 #endif

@@ -37,7 +37,7 @@ extern "C" {
     #include "drivers/timer.h"
     #include "drivers/timer_def.h"
 
-    #include "fc/config.h"
+    #include "config/config.h"
     #include "fc/rc_controls.h"
     #include "fc/rc_modes.h"
     #include "fc/runtime_config.h"
@@ -394,4 +394,7 @@ uint8_t getRssiPercent(void) { return 0; }
 bool isFlipOverAfterCrashActive(void) { return false; }
 
 void ws2811LedStripEnable(void) { }
+
+void setUsedLedCount(unsigned) { };
+
 }

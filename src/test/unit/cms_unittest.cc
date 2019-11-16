@@ -127,12 +127,13 @@ static OSD_Entry menuMainEntries[] =
 };
 CMS_Menu menuMain = {
 #ifdef CMS_MENU_DEBUG
-    "MENUMAIN",
-    OME_MENU,
+    .GUARD_text = "MENUMAIN",
+    .GUARD_type = OME_MENU,
 #endif
-    NULL,
-    NULL,
-    menuMainEntries,
+    .onEnter = NULL,
+    .onExit = NULL,
+    .checkRedirect = NULL,
+    .entries = menuMainEntries,
 };
 uint8_t armingFlags;
 int16_t debug[4];
@@ -142,7 +143,7 @@ uint32_t micros(void) { return 0; }
 uint32_t millis(void) { return 0; }
 void saveConfigAndNotify(void) {}
 void stopMotors(void) {}
-void stopPwmAllMotors(void) {}
+void motorShutdown(void) {}
 void systemReset(void) {}
 void setArmingDisabled(armingDisableFlags_e flag) { UNUSED(flag); }
 void unsetArmingDisabled(armingDisableFlags_e flag) { UNUSED(flag); }

@@ -40,7 +40,7 @@ extern "C" {
     #include "drivers/persistent.h"
     #include "drivers/serial.h"
 
-    #include "fc/config.h"
+    #include "config/config.h"
     #include "fc/core.h"
     #include "fc/rc_controls.h"
     #include "fc/rc_modes.h"
@@ -92,7 +92,8 @@ extern "C" {
     PG_REGISTER(pilotConfig_t, pilotConfig, PG_PILOT_CONFIG, 0);
     PG_REGISTER(gpsRescueConfig_t, gpsRescueConfig, PG_GPS_RESCUE, 0);
     PG_REGISTER(imuConfig_t, imuConfig, PG_IMU_CONFIG, 0);
-
+    PG_REGISTER(gpsConfig_t, gpsConfig, PG_GPS_CONFIG, 0);
+    
     timeUs_t simulationTime = 0;
     batteryState_e simulationBatteryState;
     uint8_t simulationBatteryCellCount;
@@ -1131,7 +1132,7 @@ extern "C" {
         return simulationVerticalSpeed;
     }
 
-    unsigned int blackboxGetLogNumber() {
+    int32_t blackboxGetLogNumber() {
         return 0;
     }
 

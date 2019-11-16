@@ -67,7 +67,7 @@
 
 #include "drivers/bus_spi.h"
 
-#include "fc/config.h"
+#include "config/config.h"
 #include "fc/runtime_config.h"
 
 #include "io/beeper.h"
@@ -96,6 +96,11 @@ void resetRollAndPitchTrims(rollAndPitchTrims_t *rollAndPitchTrims)
     );
 }
 
+static void setConfigCalibrationCompleted(void)
+{
+    accelerometerConfigMutable()->accZero.values.calibrationCompleted = 1;
+}
+
 void accResetRollAndPitchTrims(void)
 {
     resetRollAndPitchTrims(&accelerometerConfigMutable()->accelerometerTrims);
@@ -106,11 +111,7 @@ static void resetFlightDynamicsTrims(flightDynamicsTrims_t *accZero)
     accZero->values.roll = 0;
     accZero->values.pitch = 0;
     accZero->values.yaw = 0;
-}
-
-void accResetFlightDynamicsTrims(void)
-{
-    resetFlightDynamicsTrims(&accelerometerConfigMutable()->accZero);
+    accZero->values.calibrationCompleted = 0;
 }
 
 void pgResetFn_accelerometerConfig(accelerometerConfig_t *instance)
@@ -124,7 +125,7 @@ void pgResetFn_accelerometerConfig(accelerometerConfig_t *instance)
     resetFlightDynamicsTrims(&instance->accZero);
 }
 
-PG_REGISTER_WITH_RESET_FN(accelerometerConfig_t, accelerometerConfig, PG_ACCELEROMETER_CONFIG, 1);
+PG_REGISTER_WITH_RESET_FN(accelerometerConfig_t, accelerometerConfig, PG_ACCELEROMETER_CONFIG, 2);
 
 extern uint16_t InflightcalibratingA;
 extern bool AccInflightCalibrationMeasurementDone;
@@ -320,12 +321,18 @@ bool accInit(uint32_t gyroSamplingInverval)
     // Copy alignment from active gyro, as all production boards use acc-gyro-combi chip.
     // Exceptions are STM32F3DISCOVERY and STM32F411DISCOVERY, and (may be) handled in future enhancement.
 
-    acc.dev.accAlign = gyroDeviceConfig(0)->align;
+    sensor_align_e alignment = gyroDeviceConfig(0)->alignment;
+    const sensorAlignment_t* customAlignment = &gyroDeviceConfig(0)->customAlignment;
+
 #ifdef USE_MULTI_GYRO
     if (gyroConfig()->gyro_to_use == GYRO_CONFIG_USE_GYRO_2) {
-        acc.dev.accAlign = gyroDeviceConfig(1)->align;
+        alignment = gyroDeviceConfig(1)->alignment;
+    
+        customAlignment = &gyroDeviceConfig(1)->customAlignment;
     }
 #endif
+    acc.dev.accAlign = alignment;
+    buildRotationMatrixFromAlignment(customAlignment, &acc.dev.rotationMatrix);
 
     if (!accDetect(&acc.dev, accelerometerConfig()->acc_hardware)) {
         return false;
@@ -399,6 +406,7 @@ static void performAcclerationCalibration(rollAndPitchTrims_t *rollAndPitchTrims
         accelerationTrims->raw[Z] = (a[Z] + (CALIBRATING_ACC_CYCLES / 2)) / CALIBRATING_ACC_CYCLES - acc.dev.acc_1G;
 
         resetRollAndPitchTrims(rollAndPitchTrims);
+        setConfigCalibrationCompleted();
 
         saveConfigAndNotify();
     }
@@ -453,6 +461,7 @@ static void performInflightAccelerationCalibration(rollAndPitchTrims_t *rollAndP
         accelerationTrims->raw[Z] = b[Z] / 50 - acc.dev.acc_1G;    // for nunchuck 200=1G
 
         resetRollAndPitchTrims(rollAndPitchTrims);
+        setConfigCalibrationCompleted();
 
         saveConfigAndNotify();
     }
@@ -485,7 +494,11 @@ void accUpdate(timeUs_t currentTimeUs, rollAndPitchTrims_t *rollAndPitchTrims)
         }
     }
 
-    alignSensors(acc.accADC, acc.dev.accAlign);
+    if (acc.dev.accAlign == ALIGN_CUSTOM) {
+        alignSensorViaMatrix(acc.accADC, &acc.dev.rotationMatrix);
+    } else {
+        alignSensorViaRotation(acc.accADC, acc.dev.accAlign);
+    }
 
     if (!accIsCalibrationComplete()) {
         performAcclerationCalibration(rollAndPitchTrims);

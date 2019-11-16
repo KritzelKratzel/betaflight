@@ -50,16 +50,18 @@ void pgResetFn_motorConfig(motorConfig_t *motorConfig)
         motorConfig->dev.motorPwmProtocol = PWM_TYPE_BRUSHED;
         motorConfig->dev.useUnsyncedPwm = true;
     } else
-#endif  
+#endif // USE_BRUSHED_ESC_AUTODETECT
     {   
         motorConfig->minthrottle = 1070;
         motorConfig->dev.motorPwmRate = BRUSHLESS_MOTORS_PWM_RATE;
         motorConfig->dev.motorPwmProtocol = PWM_TYPE_ONESHOT125;
     }
-#endif
+#endif // BRUSHED_MOTORS
+
     motorConfig->maxthrottle = 2000;
     motorConfig->mincommand = 1000;
     motorConfig->digitalIdleOffsetValue = 550;
+
 #ifdef USE_DSHOT_DMAR
     motorConfig->dev.useBurstDshot = ENABLE_DSHOT_DMAR;
 #endif
@@ -71,6 +73,11 @@ void pgResetFn_motorConfig(motorConfig_t *motorConfig)
 #endif
     
     motorConfig->motorPoleCount = 14;   // Most brushes motors that we use are 14 poles
+
+#ifdef USE_DSHOT_BITBANG
+    motorConfig->dev.useDshotBitbang = DSHOT_BITBANG_DEFAULT;
+    motorConfig->dev.useDshotBitbangedTimer = DSHOT_BITBANGED_TIMER_DEFAULT;
+#endif
 }
 
 #endif // USE_MOTOR

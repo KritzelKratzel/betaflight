@@ -32,7 +32,7 @@ extern "C" {
     #include "config/feature.h"
     #include "drivers/buf_writer.h"
     #include "drivers/vtx_common.h"
-    #include "fc/config.h"
+    #include "config/config.h"
     #include "fc/rc_adjustments.h"
     #include "fc/runtime_config.h"
     #include "flight/mixer.h"
@@ -56,6 +56,7 @@ extern "C" {
     void cliSet(char *cmdline);
     void cliGet(char *cmdline);
     int cliGetSettingIndex(char *name, uint8_t length);
+    void *cliGetValuePointer(const clivalue_t *value);
     
     const clivalue_t valueTable[] = {
         { "array_unit_test",   VAR_INT8  | MODE_ARRAY  | MASTER_VALUE, .config.array.length = 3,      PG_RESERVED_FOR_TESTING_1, 0 },
@@ -264,7 +265,7 @@ void beeperOffSet(uint32_t) {}
 void beeperOffClear(uint32_t) {}
 void beeperOffClearAll(void) {}
 bool parseColor(int, const char *) {return false; }
-void resetEEPROM(void) {}
+bool resetEEPROM(bool) { return true; }
 void bufWriterFlush(bufWriter_t *) {}
 void mixerResetDisarmedMotors(void) {}
 void gpsEnablePassthrough(struct serialPort_s *) {}
@@ -274,13 +275,13 @@ const char rcChannelLetters[] = "AERT12345678abcdefgh";
 void parseRcChannels(const char *, rxConfig_t *){}
 void mixerLoadMix(int, motorMixer_t *) {}
 bool setModeColor(ledModeIndex_e, int, int) { return false; }
-float convertExternalToMotor(uint16_t ){ return 1.0; }
+float motorConvertFromExternal(uint16_t) { return 1.0; }
+void motorShutdown(void) { }
 uint8_t getCurrentPidProfileIndex(void){ return 1; }
 uint8_t getCurrentControlRateProfileIndex(void){ return 1; }
 void changeControlRateProfile(uint8_t) {}
 void resetAllRxChannelRangeConfigurations(rxChannelRangeConfig_t *) {}
 void writeEEPROM() {}
-void writeEEPROMWithFeatures(uint32_t) {}
 serialPortConfig_t *serialFindPortConfiguration(serialPortIdentifier_e) {return NULL; }
 baudRate_e lookupBaudRateIndex(uint32_t){return BAUD_9600; }
 serialPortUsage_t *findSerialPortUsageByIdentifier(serialPortIdentifier_e){ return NULL; }
@@ -328,10 +329,10 @@ void schedulerSetCalulateTaskStatistics(bool) {}
 void setArmingDisabled(armingDisableFlags_e) {}
 
 void waitForSerialPortToFinishTransmitting(serialPort_t *) {}
-void stopPwmAllMotors(void) {}
 void systemResetToBootloader(void) {}
-void resetConfigs(void) {}
+void resetConfig(void) {}
 void systemReset(void) {}
+void writeUnmodifiedConfigToEEPROM(void) {}
 
 void changePidProfile(uint8_t) {}
 bool serialIsPortAvailable(serialPortIdentifier_e) { return false; }
@@ -356,4 +357,6 @@ bool persistBoardInformation(void) { return true; };
 void activeAdjustmentRangeReset(void) {}
 void analyzeModeActivationConditions(void) {}
 bool isModeActivationConditionConfigured(const modeActivationCondition_t *, const modeActivationCondition_t *) { return false; }
+
+void delay(uint32_t) {}
 }

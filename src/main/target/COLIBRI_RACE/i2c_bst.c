@@ -25,7 +25,7 @@
 #include "drivers/time.h"
 #include "drivers/timer.h"
 
-#include "fc/config.h"
+#include "config/config.h"
 #include "fc/controlrate_profile.h"
 #include "fc/core.h"
 #include "fc/rc_adjustments.h"
@@ -553,8 +553,7 @@ static bool bstSlaveProcessWriteCommand(uint8_t bstWriteCommand)
             readEEPROM();
             break;
         case BST_SET_FEATURE:
-            featureDisableAll();
-            featureEnable(bstRead32()); // features bitmap
+            featureConfigReplace(bstRead32()); // features bitmap
 #ifdef SERIALRX_UART
             if (featureIsEnabled(FEATURE_RX_SERIAL)) {
                 serialConfigMutable()->portConfigs[SERIALRX_UART].functionMask = FUNCTION_RX_SERIAL;
@@ -786,8 +785,8 @@ static void bstMasterWrite16(uint16_t data)
 #ifdef USE_GPS
 static void bstMasterWrite32(uint32_t data)
 {
-    bstMasterWrite16((uint8_t)(data >> 16));
-    bstMasterWrite16((uint8_t)(data >> 0));
+    bstMasterWrite16((uint16_t)(data >> 16));
+    bstMasterWrite16((uint16_t)(data >> 0));
 }
 
 static int32_t lat = 0;

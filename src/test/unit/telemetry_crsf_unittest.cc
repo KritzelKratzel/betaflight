@@ -41,7 +41,7 @@ extern "C" {
     #include "drivers/serial.h"
     #include "drivers/system.h"
 
-    #include "fc/config.h"
+    #include "config/config.h"
     #include "fc/runtime_config.h"
 
     #include "flight/pid.h"
@@ -329,7 +329,7 @@ bool isSerialTransmitBufferEmpty(const serialPort_t *) { return true; }
 serialPortConfig_t *findSerialPortConfig(serialPortFunction_e) {return NULL;}
 
 bool telemetryDetermineEnabledState(portSharing_e) {return true;}
-bool telemetryCheckRxPortShared(const serialPortConfig_t *) {return true;}
+bool telemetryCheckRxPortShared(const serialPortConfig_t *, SerialRXType) {return true;}
 bool telemetryIsSensorEnabled(sensor_e) {return true;}
 
 portSharing_e determinePortSharing(const serialPortConfig_t *, serialPortFunction_e) {return PORTSHARING_NOT_SHARED;}

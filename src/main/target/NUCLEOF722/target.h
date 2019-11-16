@@ -24,6 +24,8 @@
 
 #define USBD_PRODUCT_STRING "NucleoF722"
 
+#define USE_DEBUG_PIN
+
 //#define USE_ESC_TELEMETRY
 
 #define LED0_PIN   PB7  // blue
@@ -61,6 +63,7 @@
 #define USE_BARO
 #define USE_FAKE_BARO
 #define USE_BARO_MS5611
+#define USE_BARO_BMP388
 
 #define USABLE_TIMER_CHANNEL_COUNT 9
 

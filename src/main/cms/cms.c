@@ -50,6 +50,7 @@
 
 #include "drivers/system.h"
 #include "drivers/time.h"
+#include "drivers/motor.h"
 
 // For rcData, stopAllMotors, stopPwmAllMotors
 #include "config/feature.h"
@@ -58,7 +59,7 @@
 #include "pg/rx.h"
 
 // For 'ARM' related
-#include "fc/config.h"
+#include "config/config.h"
 #include "fc/rc_controls.h"
 #include "fc/runtime_config.h"
 
@@ -653,6 +654,13 @@ long cmsMenuChange(displayPort_t *pDisplay, const void *ptr)
             return 0;
         }
 
+        if (pMenu->checkRedirect) {
+            const CMS_Menu *pRedirectMenu = (const CMS_Menu *)pMenu->checkRedirect();
+            if (pRedirectMenu) {
+                return cmsMenuChange(pDisplay, pRedirectMenu);
+            }
+        }
+
         menuStack[menuStackIdx++] = currentCtx;
 
         currentCtx.menu = pMenu;
@@ -712,6 +720,7 @@ void cmsMenuOpen(void)
         currentCtx = (cmsCtx_t){ &menuMain, 0, 0 };
         menuStackIdx = 0;
         setArmingDisabled(ARMING_DISABLED_CMS_MENU);
+        displayLayerSelect(pCurrentDisplay, DISPLAYPORT_LAYER_FOREGROUND); // make sure the foreground layer is active
     } else {
         // Switch display
         displayPort_t *pNextDisplay = cmsDisplayPortSelectNext();
@@ -808,7 +817,7 @@ long cmsMenuExit(displayPort_t *pDisplay, const void *ptr)
         displayResync(pDisplay); // Was max7456RefreshAll(); why at this timing?
 
         stopMotors();
-        stopPwmAllMotors();
+        motorShutdown();
         delay(200);
 
         systemReset();

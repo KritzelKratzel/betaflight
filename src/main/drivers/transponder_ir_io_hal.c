@@ -72,7 +72,7 @@ void transponderIrHardwareInit(ioTag_t ioTag, transponder_t *transponder)
         return;
     }
 
-    const timerHardware_t *timerHardware = timerGetByTag(ioTag);
+    const timerHardware_t *timerHardware = timerAllocate(ioTag, OWNER_TRANSPONDER, 0);
     TIM_TypeDef *timer = timerHardware->tim;
     timerChannel = timerHardware->channel;
     output = timerHardware->output;
@@ -85,10 +85,10 @@ void transponderIrHardwareInit(ioTag_t ioTag, transponder_t *transponder)
         return;
     }
 
-    dmaStream_t *dmaRef = dmaSpec->ref;
+    dmaResource_t *dmaRef = dmaSpec->ref;
     uint32_t dmaChannel = dmaSpec->channel;
 #else
-    dmaStream_t *dmaRef = timerHardware->dmaRef;
+    dmaResource_t *dmaRef = timerHardware->dmaRef;
     uint32_t dmaChannel = timerHardware->dmaChannel;
 #endif
 
@@ -144,7 +144,7 @@ void transponderIrHardwareInit(ioTag_t ioTag, transponder_t *transponder)
     hdma_tim.Init.PeriphBurst = DMA_PBURST_SINGLE;
 
     /* Set hdma_tim instance */
-    hdma_tim.Instance = dmaRef;
+    hdma_tim.Instance = (DMA_ARCH_TYPE *)dmaRef;
 
     uint16_t dmaIndex = timerDmaIndex(timerChannel);
 

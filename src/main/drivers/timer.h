@@ -23,8 +23,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "drivers/dma.h"
 #include "drivers/io_types.h"
 #include "drivers/rcc_types.h"
+#include "drivers/resource.h"
 #include "drivers/timer_def.h"
 
 #include "pg/timerio.h"
@@ -112,37 +114,25 @@ typedef struct timerHardware_s {
 #if defined(STM32F3) || defined(STM32F4) || defined(STM32F7) || defined(STM32H7)
     uint8_t alternateFunction;
 #endif
-#if defined(USE_TIMER_DMA)
-#if defined(USE_DMA_SPEC)
-#if defined(STM32F4) || defined(STM32F7) || defined(STM32H7)
-    DMA_Stream_TypeDef *dmaRefConfigured;
-    uint32_t dmaChannelConfigured;
-#else
-    DMA_Channel_TypeDef *dmaRefConfigured;
-#endif
-#else
-#if defined(STM32F4) || defined(STM32F7) || defined(STM32H7)
-    DMA_Stream_TypeDef *dmaRef;
-    // For F4 and F7, dmaChannel is channel for DMA1 or DMA2.
-    // For H7, dmaChannel is DMA request number for DMAMUX
-    uint32_t dmaChannel; // XXX Can be much smaller (e.g. uint8_t)
-#else
-    DMA_Channel_TypeDef *dmaRef;
-#endif
-#endif
 
-#if defined(STM32F3) || defined(STM32F4) || defined(STM32F7) || defined(STM32H7)
-    // TIMUP
-#ifdef STM32F3
-    DMA_Channel_TypeDef *dmaTimUPRef;
-#else
-    DMA_Stream_TypeDef *dmaTimUPRef;
-    // For F4 and F7, dmaTimUpChannel is channel for DMA1 or DMA2.
-    // For H7, dmaTimUpChannel is DMA request number for DMAMUX
+#if defined(USE_TIMER_DMA)
+
+#if defined(USE_DMA_SPEC)
+    dmaResource_t *dmaRefConfigured;
+#if defined(STM32F4) || defined(STM32F7) || defined(STM32H7)
+    uint32_t dmaChannelConfigured;
+#endif
+#else // USE_DMA_SPEC
+    dmaResource_t *dmaRef;
+#if defined(STM32F4) || defined(STM32F7) || defined(STM32H7)
+    uint32_t dmaChannel; // XXX Can be much smaller (e.g. uint8_t)
+#endif
+#endif // USE_DMA_SPEC
+    dmaResource_t *dmaTimUPRef;
+#if defined(STM32F4) || defined(STM32F7) || defined(STM32H7)
     uint32_t dmaTimUPChannel;
 #endif
     uint8_t dmaTimUPIrqHandler;
-#endif
 #endif
 } timerHardware_t;
 
@@ -181,9 +171,17 @@ extern const timerHardware_t timerHardware[];
 
 
 #if defined(USE_TIMER_MGMT)
-#if defined(STM32F4)
+#if defined(STM32F3)
 
+#define FULL_TIMER_CHANNEL_COUNT 88
+
+#elif defined(STM32F4)
+
+#if defined(STM32F411xE)
+#define FULL_TIMER_CHANNEL_COUNT 59
+#else
 #define FULL_TIMER_CHANNEL_COUNT 78
+#endif
 
 #elif defined(STM32F7)
 
@@ -202,11 +200,15 @@ extern const timerHardware_t fullTimerHardware[];
 
 #if defined(STM32F7) || defined(STM32F4)
 
+#if defined(STM32F411xE)
+#define USED_TIMERS ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(5) | TIM_N(6) | TIM_N(7) | TIM_N(9) | TIM_N(10) | TIM_N(11) )
+#else
 #define USED_TIMERS ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(5) | TIM_N(6) | TIM_N(7) | TIM_N(8) | TIM_N(9) | TIM_N(10) | TIM_N(11) | TIM_N(12) | TIM_N(13) | TIM_N(14) )
+#endif
 
 #elif defined(STM32F3)
 
-#define USED_TIMERS ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(5) | TIM_N(6) | TIM_N(7) | TIM_N(8) | TIM_N(15) | TIM_N(16) | TIM_N(17) )
+#define USED_TIMERS ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(6) | TIM_N(7) | TIM_N(8) | TIM_N(15) | TIM_N(16) | TIM_N(17) )
 
 #elif defined(STM32F1)
 
@@ -280,9 +282,15 @@ rccPeriphTag_t timerRCC(TIM_TypeDef *tim);
 uint8_t timerInputIrq(TIM_TypeDef *tim);
 
 #if defined(USE_TIMER_MGMT)
-timerIOConfig_t *timerIoConfigByTag(ioTag_t ioTag);
+extern const resourceOwner_t freeOwner;
+
+struct timerIOConfig_s;
+
+struct timerIOConfig_s *timerIoConfigByTag(ioTag_t ioTag);
+const resourceOwner_t *timerGetOwner(int8_t timerNumber, uint16_t timerChannel);
 #endif
 const timerHardware_t *timerGetByTag(ioTag_t ioTag);
+const timerHardware_t *timerAllocate(ioTag_t ioTag, resourceOwner_e owner, uint8_t resourceIndex);
 const timerHardware_t *timerGetByTagAndIndex(ioTag_t ioTag, unsigned timerIndex);
 ioTag_t timerioTagGetByUsage(timerUsageFlag_e usageFlag, uint8_t index);
 
@@ -303,5 +311,6 @@ uint16_t timerGetPrescalerByDesiredHertz(TIM_TypeDef *tim, uint32_t hz);
 uint16_t timerGetPrescalerByDesiredMhz(TIM_TypeDef *tim, uint16_t mhz);
 uint16_t timerGetPeriodByPrescaler(TIM_TypeDef *tim, uint16_t prescaler, uint32_t hz);
 
+int8_t timerGetNumberByIndex(uint8_t index);
 int8_t timerGetTIMNumber(const TIM_TypeDef *tim);
 uint8_t timerLookupChannelIndex(const uint16_t channel);
