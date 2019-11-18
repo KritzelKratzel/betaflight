@@ -879,7 +879,7 @@ void init(void)
 #endif
     gyroStartCalibration(false);
 #ifdef USE_BARO
-    baroSetCalibrationCycles(CALIBRATING_BARO_CYCLES);
+    baroStartCalibration();
 #endif
 
 #if defined(USE_VTX_COMMON) || defined(USE_VTX_CONTROL)
@@ -914,8 +914,6 @@ void init(void)
     // TODO - not implemented yet
     timerStart();
 #endif
-
-    ENABLE_STATE(SMALL_ANGLE);
 
 #ifdef SOFTSERIAL_LOOPBACK
     // FIXME this is a hack, perhaps add a FUNCTION_LOOPBACK to support it properly

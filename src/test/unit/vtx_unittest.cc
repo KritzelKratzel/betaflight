@@ -165,7 +165,7 @@ extern "C" {
     void transponderUpdate(timeUs_t) {}
     void GPS_reset_home_position(void) {}
     void accStartCalibration(void) {}
-    void baroSetCalibrationCycles(uint16_t) {}
+    void baroSetGroundLevel(void) {}
     void changePidProfile(uint8_t) {}
     void changeControlRateProfile(uint8_t) {}
     void dashboardEnablePageCycling(void) {}
@@ -178,4 +178,6 @@ extern "C" {
     void osdSuppressStats(bool) {}
     void pidSetItermReset(bool) {}
     void applyAccelerometerTrimsDelta(rollAndPitchTrims_t*) {}
+    bool isFixedWing(void) { return false; }
+    bool isUpright(void) { return true; }
 }

@@ -241,8 +241,9 @@ void processRcStickPositions()
 #endif
 
 #ifdef USE_BARO
-        if (sensors(SENSOR_BARO))
-            baroSetCalibrationCycles(10); // calibrate baro to new ground level (10 * 25 ms = ~250 ms non blocking)
+        if (sensors(SENSOR_BARO)) {
+            baroSetGroundLevel();
+        }
 #endif
 
         return;
@@ -395,5 +396,5 @@ int32_t getRcStickDeflection(int32_t axis, uint16_t midrc) {
 void rcControlsInit(void)
 {
     analyzeModeActivationConditions();
-    isUsingSticksToArm = !isModeActivationConditionPresent(BOXARM);
+    isUsingSticksToArm = !isModeActivationConditionPresent(BOXARM) && systemConfig()->enableStickArming;
 }

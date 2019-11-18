@@ -108,12 +108,14 @@ PG_RESET_TEMPLATE(systemConfig_t, systemConfig,
     .activeRateProfile = 0,
     .debug_mode = DEBUG_MODE,
     .task_statistics = true,
+    .rateProfile6PosSwitch = false,
     .cpu_overclock = 0,
     .powerOnArmingGraceTime = 5,
     .boardIdentifier = TARGET_BOARD_IDENTIFIER,
     .hseMhz = SYSTEM_HSE_VALUE,  // Not used for non-F4 targets
     .configurationState = CONFIGURATION_STATE_DEFAULTS_BARE,
     .schedulerOptimizeRate = SCHEDULER_OPTIMIZE_RATE_AUTO,
+    .enableStickArming = false,
 );
 
 uint8_t getCurrentPidProfileIndex(void)
