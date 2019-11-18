@@ -154,7 +154,7 @@
 #include "drivers/sensor.h"
 #include "drivers/accgyro/accgyro.h"
 
-#include "fc/config.h"
+#include "config/config.h"
 #include "fc/rc_modes.h"
 #include "fc/rc_controls.h"
 #include "fc/runtime_config.h"
@@ -379,7 +379,7 @@ void initNc3dTelemetry(void)
 
 void checkNc3dTelemetryState(void)
 {
-  if (portConfig && telemetryCheckRxPortShared(portConfig)) {
+  if (portConfig && telemetryCheckRxPortShared(portConfig, rxRuntimeState.serialrxProvider)) {
     if (!nc3dEnabled && telemetrySharedPort != NULL) {
       nc3dPort = telemetrySharedPort;
       nc3dEnabled = true;
