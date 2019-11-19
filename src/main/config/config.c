@@ -268,11 +268,19 @@ static void validateAndFixConfig(void)
 
     validateAndFixGyroConfig();
 
+#if defined(USE_MAG)
     buildAlignmentFromStandardAlignment(&compassConfigMutable()->mag_customAlignment, compassConfig()->mag_alignment);
+#endif
     buildAlignmentFromStandardAlignment(&gyroDeviceConfigMutable(0)->customAlignment, gyroDeviceConfig(0)->alignment);
 #if defined(USE_MULTI_GYRO)
     buildAlignmentFromStandardAlignment(&gyroDeviceConfigMutable(1)->customAlignment, gyroDeviceConfig(1)->alignment);
 #endif
+
+    if (accelerometerConfig()->accZero.values.roll != 0 ||
+        accelerometerConfig()->accZero.values.pitch != 0 ||
+        accelerometerConfig()->accZero.values.yaw != 0) {
+        accelerometerConfigMutable()->accZero.values.calibrationCompleted = 1;
+    }
 
     if (!(featureIsConfigured(FEATURE_RX_PARALLEL_PWM) || featureIsConfigured(FEATURE_RX_PPM) || featureIsConfigured(FEATURE_RX_SERIAL) || featureIsConfigured(FEATURE_RX_MSP) || featureIsConfigured(FEATURE_RX_SPI))) {
         featureEnable(DEFAULT_RX_FEATURE);

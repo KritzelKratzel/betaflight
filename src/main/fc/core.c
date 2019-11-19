@@ -98,8 +98,8 @@
 #include "sensors/barometer.h"
 #include "sensors/battery.h"
 #include "sensors/boardalignment.h"
+#include "sensors/compass.h"
 #include "sensors/gyro.h"
-#include "sensors/sensors.h"
 
 #include "telemetry/telemetry.h"
 
@@ -177,21 +177,17 @@ PG_RESET_TEMPLATE(throttleCorrectionConfig_t, throttleCorrectionConfig,
 
 static bool isCalibrating(void)
 {
-#ifdef USE_BARO
-    if (sensors(SENSOR_BARO) && !isBaroCalibrationComplete()) {
-        return true;
-    }
-#endif
-
-    // Note: compass calibration is handled completely differently, outside of the main loop, see f.CALIBRATE_MAG
-
-    return (
+    return (sensors(SENSOR_GYRO) && !gyroIsCalibrationComplete())
 #ifdef USE_ACC
-        !accIsCalibrationComplete()
-#else
-        false
+        || (sensors(SENSOR_ACC) && !accIsCalibrationComplete())
 #endif
-            && sensors(SENSOR_ACC)) || (!isGyroCalibrationComplete());
+#ifdef USE_BARO
+        || (sensors(SENSOR_BARO) && !baroIsCalibrationComplete())
+#endif
+#ifdef USE_MAG
+        || (sensors(SENSOR_MAG) && !compassIsCalibrationComplete())
+#endif
+        ;
 }
 
 #ifdef USE_LAUNCH_CONTROL
@@ -220,11 +216,7 @@ static bool accNeedsCalibration(void)
     if (sensors(SENSOR_ACC)) {
 
         // Check to see if the ACC has already been calibrated
-        if (accelerometerConfig()->accZero.values.calibrationCompleted ||
-            accelerometerConfig()->accZero.values.roll != 0 ||
-            accelerometerConfig()->accZero.values.pitch != 0 ||
-            accelerometerConfig()->accZero.values.yaw != 0) {
-
+        if (accHasBeenCalibrated()) {
             return false;
         }
 
