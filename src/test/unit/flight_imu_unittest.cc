@@ -175,7 +175,7 @@ TEST(FlightImuTest, TestSmallAngle)
     imuComputeRotationMatrix();
 
     // expect
-    EXPECT_EQ(false, isUpright());
+    EXPECT_FALSE(isUpright());
 
     // given
     rMat[0][0] = r1;
@@ -187,7 +187,7 @@ TEST(FlightImuTest, TestSmallAngle)
     imuComputeRotationMatrix();
 
     // expect
-    EXPECT_EQ(false, isUpright());
+    EXPECT_FALSE(isUpright());
 
     // given
     memset(rMat, 0.0, sizeof(float) * 9);
@@ -196,7 +196,7 @@ TEST(FlightImuTest, TestSmallAngle)
     imuComputeRotationMatrix();
 
     // expect
-    EXPECT_EQ(false, isUpright());
+    EXPECT_FALSE(isUpright());
 }
 
 // STUBS
@@ -234,8 +234,7 @@ uint16_t disableFlightMode(flightModeFlags_e mask)
 
 bool sensors(uint32_t mask)
 {
-    UNUSED(mask);
-    return false;
+    return mask & SENSOR_ACC;
 };
 
 uint32_t millis(void) { return 0; }
