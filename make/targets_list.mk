@@ -1,20 +1,3 @@
-OFFICIAL_TARGETS  = \
-    ALIENFLIGHTF3 \
-    ALIENFLIGHTF4 \
-    ANYFCF7 \
-    BETAFLIGHTF3 \
-    BLUEJAYF4 \
-    FURYF4 REVO \
-    SIRINFPV \
-    SPARKY \
-    SPRACINGF3 \
-    SPRACINGF3EVO \
-    SPRACINGF3NEO \
-    SPRACINGF4EVO \
-    SPRACINGF7DUAL \
-    SPRACINGH7EXTREME \
-    STM32F3DISCOVERY
-
 ALT_TARGET_PATHS  = $(filter-out %/target,$(basename $(wildcard $(ROOT)/src/main/target/*/*.mk)))
 ALT_TARGET_NAMES  = $(notdir $(ALT_TARGET_PATHS))
 BASE_TARGET_NAMES = $(notdir $(patsubst %/,%,$(dir $(ALT_TARGET_PATHS))))
@@ -154,10 +137,10 @@ LEGACY_TARGETS := MATEKF405 \
     TMOTORF7 \
     TRANSTECF7
 
-CI_TARGETS := $(filter-out $(LEGACY_TARGETS), $(filter-out $(UNSUPPORTED_TARGETS), $(VALID_TARGETS)))
+CI_TARGETS := $(filter-out $(LEGACY_TARGETS) $(UNSUPPORTED_TARGETS), $(VALID_TARGETS))
 
 TARGETS_TOTAL := $(words $(CI_TARGETS))
-TARGET_GROUPS := 5
+TARGET_GROUPS := 6
 TARGETS_PER_GROUP := $(shell expr $(TARGETS_TOTAL) / $(TARGET_GROUPS) )
 
 ST := 1
@@ -176,4 +159,8 @@ ST := $(shell expr $(ET) + 1)
 ET := $(shell expr $(ST) + $(TARGETS_PER_GROUP))
 GROUP_4_TARGETS := $(wordlist $(ST), $(ET), $(CI_TARGETS))
 
-GROUP_OTHER_TARGETS := $(filter-out $(GROUP_1_TARGETS) $(GROUP_2_TARGETS) $(GROUP_3_TARGETS) $(GROUP_4_TARGETS), $(CI_TARGETS))
+ST := $(shell expr $(ET) + 1)
+ET := $(shell expr $(ST) + $(TARGETS_PER_GROUP))
+GROUP_5_TARGETS := $(wordlist $(ST), $(ET), $(CI_TARGETS))
+
+GROUP_OTHER_TARGETS := $(filter-out $(GROUP_1_TARGETS) $(GROUP_2_TARGETS) $(GROUP_3_TARGETS) $(GROUP_4_TARGETS) $(GROUP_5_TARGETS), $(CI_TARGETS))

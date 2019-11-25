@@ -225,6 +225,7 @@ CROSS_GDB   := $(ARM_SDK_PREFIX)gdb
 OBJCOPY     := $(ARM_SDK_PREFIX)objcopy
 OBJDUMP     := $(ARM_SDK_PREFIX)objdump
 SIZE        := $(ARM_SDK_PREFIX)size
+DFUSE-PACK  := src/utils/dfuse-pack.py
 
 #
 # Tool options.
@@ -234,6 +235,13 @@ CC_DEFAULT_OPTIMISATION := $(OPTIMISATION_BASE) $(OPTIMISE_DEFAULT)
 CC_SPEED_OPTIMISATION   := $(OPTIMISATION_BASE) $(OPTIMISE_SPEED)
 CC_SIZE_OPTIMISATION    := $(OPTIMISATION_BASE) $(OPTIMISE_SIZE)
 CC_NO_OPTIMISATION      := 
+
+#
+# Added after GCC version update, remove once the warnings have been fixed
+#
+TEMPORARY_FLAGS := -Wno-stringop-truncation \
+              -Wno-attributes \
+              -Wno-cast-function-type
 
 CFLAGS     += $(ARCH_FLAGS) \
               $(addprefix -D,$(OPTIONS)) \
@@ -245,6 +253,7 @@ CFLAGS     += $(ARCH_FLAGS) \
               -fdata-sections \
               -fno-common \
               -pedantic \
+              $(TEMPORARY_FLAGS) \
               $(DEVICE_FLAGS) \
               -D_GNU_SOURCE \
               -DUSE_STDPERIPH_DRIVER \
@@ -297,6 +306,7 @@ CPPCHECK        = cppcheck $(CSOURCES) --enable=all --platform=unix64 \
 TARGET_S19      = $(BIN_DIR)/$(FORKNAME)_$(FC_VER)_$(TARGET).s19
 TARGET_BIN      = $(BIN_DIR)/$(FORKNAME)_$(FC_VER)_$(TARGET).bin
 TARGET_HEX      = $(BIN_DIR)/$(FORKNAME)_$(FC_VER)_$(TARGET).hex
+TARGET_DFU      = $(BIN_DIR)/$(FORKNAME)_$(FC_VER)_$(TARGET).dfu
 TARGET_ELF      = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET).elf
 TARGET_EXST_ELF = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET)_EXST.elf
 TARGET_UNPATCHED_BIN = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET)_UNPATCHED.bin
@@ -311,6 +321,7 @@ CLEAN_ARTIFACTS := $(TARGET_BIN)
 CLEAN_ARTIFACTS += $(TARGET_HEX)
 CLEAN_ARTIFACTS += $(TARGET_ELF) $(TARGET_OBJS) $(TARGET_MAP)
 CLEAN_ARTIFACTS += $(TARGET_LST)
+CLEAN_ARTIFACTS += $(TARGET_DFU)
 
 # Make sure build date and revision is updated on every incremental build
 $(OBJECT_DIR)/$(TARGET)/build/version.o : $(SRC)
@@ -334,6 +345,10 @@ $(TARGET_BIN): $(TARGET_ELF)
 $(TARGET_HEX): $(TARGET_ELF)
 	@echo "Creating HEX $(TARGET_HEX)" "$(STDOUT)"
 	$(V1) $(OBJCOPY) -O ihex --set-start 0x8000000 $< $@
+
+$(TARGET_DFU): $(TARGET_HEX)
+	@echo "Creating DFU $(TARGET_DFU)" "$(STDOUT)"
+	$(V1) $(DFUSE-PACK) -i $< $@
 
 else
 CLEAN_ARTIFACTS += $(TARGET_UNPATCHED_BIN) $(TARGET_EXST_HASH_SECTION_FILE) $(TARGET_EXST_ELF)
@@ -446,9 +461,6 @@ unsupported: $(UNSUPPORTED_TARGETS)
 pre-push:
 	$(MAKE) $(addsuffix _clean,$(PRE_PUSH_TARGET_LIST)) $(PRE_PUSH_TARGET_LIST) EXTRA_FLAGS=-Werror
 
-## official          : Build all official (travis) targets
-official: $(OFFICIAL_TARGETS)
-
 ## targets-group-1   : build some targets
 targets-group-1: $(GROUP_1_TARGETS)
 
@@ -458,8 +470,11 @@ targets-group-2: $(GROUP_2_TARGETS)
 ## targets-group-3   : build some targets
 targets-group-3: $(GROUP_3_TARGETS)
 
-## targets-group-3   : build some targets
+## targets-group-4   : build some targets
 targets-group-4: $(GROUP_4_TARGETS)
+
+## targets-group-5   : build some targets
+targets-group-5: $(GROUP_5_TARGETS)
 
 ## targets-group-rest: build the rest of the targets (not listed in group 1, 2 or 3)
 targets-group-rest: $(GROUP_OTHER_TARGETS)
@@ -499,7 +514,7 @@ TARGETS_FLASH = $(addsuffix _flash,$(VALID_TARGETS) )
 
 ## <TARGET>_flash    : build and flash a target
 $(TARGETS_FLASH):
-	$(V0) $(MAKE) binary hex TARGET=$(subst _flash,,$@)
+	$(V0) $(MAKE) hex TARGET=$(subst _flash,,$@)
 ifneq (,$(findstring /dev/ttyUSB,$(SERIAL_DEVICE)))
 	$(V0) $(MAKE) tty_flash TARGET=$(subst _flash,,$@)
 else
@@ -519,7 +534,8 @@ ifneq (no-port-found,$(SERIAL_DEVICE))
 	$(V0) echo -n 'R' > $(SERIAL_DEVICE)
 	$(V0) sleep 1
 endif
-	$(V0) dfu-util -a 0 -D $(TARGET_BIN) -s 0x08000000:leave
+	$(V0) $(MAKE) $(TARGET_DFU)
+	$(V0) dfu-util -a 0 -D $(TARGET_DFU) -s :leave
 
 st-flash_$(TARGET): $(TARGET_BIN)
 	$(V0) st-flash --reset write $< 0x08000000
@@ -595,12 +611,14 @@ targets:
 	@echo "targets-group-2:     $(GROUP_2_TARGETS)"
 	@echo "targets-group-3:     $(GROUP_3_TARGETS)"
 	@echo "targets-group-4:     $(GROUP_4_TARGETS)"
+	@echo "targets-group-5:     $(GROUP_5_TARGETS)"
 	@echo "targets-group-rest:  $(GROUP_OTHER_TARGETS)"
 
 	@echo "targets-group-1:     $(words $(GROUP_1_TARGETS)) targets"
 	@echo "targets-group-2:     $(words $(GROUP_2_TARGETS)) targets"
 	@echo "targets-group-3:     $(words $(GROUP_3_TARGETS)) targets"
 	@echo "targets-group-4:     $(words $(GROUP_4_TARGETS)) targets"
+	@echo "targets-group-5:     $(words $(GROUP_5_TARGETS)) targets"
 	@echo "targets-group-rest:  $(words $(GROUP_OTHER_TARGETS)) targets"
 	@echo "total in all groups  $(words $(CI_TARGETS)) targets"
 
