@@ -227,6 +227,7 @@ typedef enum {
     OSD_DISPLAYPORT_DEVICE_AUTO,
     OSD_DISPLAYPORT_DEVICE_MAX7456,
     OSD_DISPLAYPORT_DEVICE_MSP,
+    OSD_DISPLAYPORT_DEVICE_FRSKYOSD,
 } osdDisplayPortDevice_e;
 
 // Make sure the number of warnings do not exceed the available 32bit storage
@@ -271,6 +272,8 @@ typedef struct osdConfig_s {
     int8_t rcChannels[OSD_RCCHANNELS_COUNT];  // RC channel values to display, -1 if none
     uint8_t displayPortDevice;                // osdDisplayPortDevice_e
     uint16_t distance_alarm;
+    uint8_t logo_on_arming;                   // show the logo on arming
+    uint8_t logo_on_arming_duration;          // display duration in 0.1s units
 } osdConfig_t;
 
 PG_DECLARE(osdConfig_t, osdConfig);
@@ -317,3 +320,4 @@ bool osdElementVisible(uint16_t value);
 bool osdGetVisualBeeperState(void);
 statistic_t *osdGetStats(void);
 bool osdNeedsAccelerometer(void);
+struct displayPort_s *osdGetDisplayPort(void);

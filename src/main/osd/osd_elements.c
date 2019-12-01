@@ -85,8 +85,8 @@
 #include "config/feature.h"
 
 #include "drivers/display.h"
-#include "drivers/max7456_symbols.h"
 #include "drivers/dshot.h"
+#include "drivers/osd_symbols.h"
 #include "drivers/time.h"
 #include "drivers/vtx_common.h"
 
@@ -1445,7 +1445,7 @@ static void osdElementWarnings(osdElementParms_t *element)
 #endif // USE_RC_SMOOTHING_FILTER
 
     // Show warning if battery is not fresh
-    if (osdWarnGetState(OSD_WARNING_BATTERY_NOT_FULL) && !ARMING_FLAG(WAS_EVER_ARMED) && (getBatteryState() == BATTERY_OK)
+    if (osdWarnGetState(OSD_WARNING_BATTERY_NOT_FULL) && !(ARMING_FLAG(ARMED) || ARMING_FLAG(WAS_EVER_ARMED)) && (getBatteryState() == BATTERY_OK)
           && getBatteryAverageCellVoltage() < batteryConfig()->vbatfullcellvoltage) {
         tfp_sprintf(element->buff, "BATT < FULL");
         element->attr = DISPLAYPORT_ATTR_INFO;

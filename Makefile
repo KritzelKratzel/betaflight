@@ -16,7 +16,7 @@
 #
 
 # The target to build, see VALID_TARGETS below
-TARGET    ?= OMNIBUSF4
+TARGET    ?= STM32F405
 
 # Compile-time options
 OPTIONS   ?=
@@ -108,7 +108,7 @@ FEATURE_CUT_LEVEL_SUPPLIED := $(FEATURE_CUT_LEVEL)
 FEATURE_CUT_LEVEL =
 
 # The list of targets to build for 'pre-push'
-PRE_PUSH_TARGET_LIST ?= OMNIBUSF4 STM32F405 SPRACINGF7DUAL STM32F7X2 SITL test-representative
+PRE_PUSH_TARGET_LIST ?= OMNIBUSF4 STM32F405 SPRACINGF7DUAL STM32F7X2 NUCLEOH743 SITL test-representative
 
 include $(ROOT)/make/targets.mk
 
@@ -239,8 +239,7 @@ CC_NO_OPTIMISATION      :=
 #
 # Added after GCC version update, remove once the warnings have been fixed
 #
-TEMPORARY_FLAGS := -Wno-attributes \
-              -Wno-cast-function-type
+TEMPORARY_FLAGS :=
 
 CFLAGS     += $(ARCH_FLAGS) \
               $(addprefix -D,$(OPTIONS)) \

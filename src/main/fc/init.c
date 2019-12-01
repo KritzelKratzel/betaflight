@@ -101,6 +101,7 @@
 #include "io/asyncfatfs/asyncfatfs.h"
 #include "io/beeper.h"
 #include "io/dashboard.h"
+#include "io/displayport_frsky_osd.h"
 #include "io/displayport_max7456.h"
 #include "io/displayport_msp.h"
 #include "io/displayport_srxl.h"
@@ -144,14 +145,13 @@
 #include "pg/pin_pull_up_down.h"
 #include "pg/pg.h"
 #include "pg/rx.h"
-#include "pg/rx_spi.h"
 #include "pg/rx_pwm.h"
+#include "pg/rx_spi.h"
 #include "pg/sdcard.h"
 #include "pg/vcd.h"
 #include "pg/vtx_io.h"
 
 #include "rx/rx.h"
-#include "rx/rx_spi.h"
 #include "rx/spektrum.h"
 
 #include "scheduler/scheduler.h"
@@ -682,14 +682,6 @@ void init(void)
 #endif
 
 #ifdef USE_ADC
-    adcConfigMutable()->vbat.enabled = (batteryConfig()->voltageMeterSource == VOLTAGE_METER_ADC);
-    adcConfigMutable()->current.enabled = (batteryConfig()->currentMeterSource == CURRENT_METER_ADC);
-
-    // The FrSky D SPI RX sends RSSI_ADC_PIN (if configured) as A2
-    adcConfigMutable()->rssi.enabled = featureIsEnabled(FEATURE_RSSI_ADC);
-#ifdef USE_RX_SPI
-    adcConfigMutable()->rssi.enabled |= (featureIsEnabled(FEATURE_RX_SPI) && rxSpiConfig()->rx_spi_protocol == RX_SPI_FRSKY_D);
-#endif
     adcInit(adcConfig());
 #endif
 
@@ -794,6 +786,18 @@ void init(void)
 
         case OSD_DISPLAYPORT_DEVICE_AUTO:
             FALLTHROUGH;
+
+#if defined(USE_FRSKYOSD)
+        // Test OSD_DISPLAYPORT_DEVICE_FRSKYOSD first, since an FC could
+        // have a builtin MAX7456 but also an FRSKYOSD connected to an
+        // uart.
+        case OSD_DISPLAYPORT_DEVICE_FRSKYOSD:
+            osdDisplayPort = frskyOsdDisplayPortInit(vcdProfile()->video_system);
+            if (osdDisplayPort || device == OSD_DISPLAYPORT_DEVICE_FRSKYOSD) {
+                break;
+            }
+            FALLTHROUGH;
+#endif
 
 #if defined(USE_MAX7456)
         case OSD_DISPLAYPORT_DEVICE_MAX7456:
@@ -900,8 +904,6 @@ void init(void)
                 initFlags |= SD_INIT_ATTEMPTED;
                 sdCardAndFSInit();
             }
-        } else {
-            blackboxConfigMutable()->device = BLACKBOX_DEVICE_NONE;
         }
     }
 #endif

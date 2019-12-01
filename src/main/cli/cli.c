@@ -1238,14 +1238,14 @@ static void cliSerial(char *cmdline)
     serialPortConfig_t portConfig;
     memset(&portConfig, 0 , sizeof(portConfig));
 
-    serialPortConfig_t *currentConfig;
 
     uint8_t validArgumentCount = 0;
 
     const char *ptr = cmdline;
 
     int val = atoi(ptr++);
-    currentConfig = serialFindPortConfiguration(val);
+    serialPortConfig_t *currentConfig = serialFindPortConfigurationMutable(val);
+
     if (currentConfig) {
         portConfig.identifier = val;
         validArgumentCount++;
@@ -1253,8 +1253,8 @@ static void cliSerial(char *cmdline)
 
     ptr = nextArg(ptr);
     if (ptr) {
-        val = atoi(ptr);
-        portConfig.functionMask = val & 0xFFFF;
+        val = strtoul(ptr, NULL, 10);
+        portConfig.functionMask = val;
         validArgumentCount++;
     }
 
