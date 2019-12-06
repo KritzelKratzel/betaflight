@@ -31,7 +31,14 @@
 #include "common/time.h"
 #include "common/utils.h"
 
+#include "drivers/flash.h"
+#include "drivers/light_led.h"
+#include "drivers/time.h"
+#include "drivers/usb_msc.h"
+
 #include "io/flashfs.h"
+
+#include "pg/flash.h"
 
 #include "msc/usbd_storage.h"
 
@@ -272,7 +279,6 @@ static const emfat_entry_t entriesPredefined[] =
 #define EMFAT_MAX_ENTRY (PREDEFINED_ENTRY_COUNT + EMFAT_MAX_LOG_ENTRY + APPENDED_ENTRY_COUNT)
 
 static emfat_entry_t entries[EMFAT_MAX_ENTRY];
-static char logNames[EMFAT_MAX_LOG_ENTRY][8+1+3];
 
 emfat_t emfat;
 static uint32_t cmaTime = CMA_TIME;
@@ -286,8 +292,11 @@ static void emfat_set_entry_cma(emfat_entry_t *entry)
     entry->cma_time[2] = cmaTime;
 }
 
+#ifdef USE_FLASHFS
 static void emfat_add_log(emfat_entry_t *entry, int number, uint32_t offset, uint32_t size)
 {
+    static char logNames[EMFAT_MAX_LOG_ENTRY][8+1+3];
+
     tfp_sprintf(logNames[number], FC_FIRMWARE_IDENTIFIER "_%03d.BBL", number + 1);
     entry->name = logNames[number];
     entry->level = 1;
@@ -300,9 +309,8 @@ static void emfat_add_log(emfat_entry_t *entry, int number, uint32_t offset, uin
     entry->cma_time[2] = entry->cma_time[0];
 }
 
-static int emfat_find_log(emfat_entry_t *entry, int maxCount)
+static int emfat_find_log(emfat_entry_t *entry, int maxCount, int flashfsUsedSpace)
 {
-    int limit = flashfsIdentifyStartOfFreeSpace();
     int lastOffset = 0;
     int currOffset = 0;
     int buffOffset;
@@ -316,7 +324,10 @@ static int emfat_find_log(emfat_entry_t *entry, int maxCount)
     int lenTimeHeader = strlen(timeHeader);
     int timeHeaderMatched = 0;
 
-    for ( ; currOffset < limit ; currOffset += 2048) { // XXX 2048 = FREE_BLOCK_SIZE in io/flashfs.c
+    for ( ; currOffset < flashfsUsedSpace ; currOffset += 2048) { // XXX 2048 = FREE_BLOCK_SIZE in io/flashfs.c
+
+        mscSetActive();
+        mscActivityLed();
 
         flashfsReadAbs(currOffset, buffer, HDR_BUF_SIZE);
 
@@ -373,7 +384,7 @@ static int emfat_find_log(emfat_entry_t *entry, int maxCount)
                 hdrOffset += HDR_BUF_SIZE;
 
                 // Check for flash overflow
-                if (hdrOffset > limit) {
+                if (hdrOffset > flashfsUsedSpace) {
                     break;
                 }
 
@@ -397,9 +408,12 @@ static int emfat_find_log(emfat_entry_t *entry, int maxCount)
 
     return logCount;
 }
+#endif  // USE_FLASHFS
 
 void emfat_init_files(void)
 {
+    int flashfsUsedSpace = 0;
+    int entryIndex = PREDEFINED_ENTRY_COUNT;
     emfat_entry_t *entry;
     memset(entries, 0, sizeof(entries));
 
@@ -411,40 +425,49 @@ void emfat_init_files(void)
     }
 #endif
 
+    // create the predefined entries
     for (size_t i = 0 ; i < PREDEFINED_ENTRY_COUNT ; i++) {
         entries[i] = entriesPredefined[i];
         // These entries have timestamps corresponding to when the filesystem is mounted
         emfat_set_entry_cma(&entries[i]);
     }
 
-    // Detect and create entries for each individual log
-    const int logCount = emfat_find_log(&entries[PREDEFINED_ENTRY_COUNT], EMFAT_MAX_LOG_ENTRY);
+#ifdef USE_FLASHFS
+    flashInit(flashConfig());
+    flashfsInit();
+    LED0_OFF;
 
-    int entryIndex = PREDEFINED_ENTRY_COUNT + logCount;
-    const int usedSpace = flashfsIdentifyStartOfFreeSpace();
+    flashfsUsedSpace = flashfsIdentifyStartOfFreeSpace();
+
+    // Detect and create entries for each individual log
+    const int logCount = emfat_find_log(&entries[PREDEFINED_ENTRY_COUNT], EMFAT_MAX_LOG_ENTRY, flashfsUsedSpace);
+
+    entryIndex += logCount;
 
     if (logCount > 0) {
         // Create the all logs entry that represents all used flash space to
         // allow downloading the entire log in one file
         entries[entryIndex] = entriesPredefined[PREDEFINED_ENTRY_COUNT];
         entry = &entries[entryIndex];
-        entry->curr_size = usedSpace;
+        entry->curr_size = flashfsUsedSpace;
         entry->max_size = entry->curr_size;
         // This entry has timestamps corresponding to when the filesystem is mounted
         emfat_set_entry_cma(entry);
         ++entryIndex;
     }
+#endif // USE_FLASHFS
 
     // Padding file to fill out the filesystem size to FILESYSTEM_SIZE_MB
-    if (usedSpace * 2 < FILESYSTEM_SIZE_MB * 1024 * 1024) {
+    if (flashfsUsedSpace * 2 < FILESYSTEM_SIZE_MB * 1024 * 1024) {
         entries[entryIndex] = entriesPredefined[PREDEFINED_ENTRY_COUNT + 1];
         entry = &entries[entryIndex];
         // used space is doubled because of the individual files plus the single complete file
-        entry->curr_size = (FILESYSTEM_SIZE_MB * 1024 * 1024) - (usedSpace * 2);
+        entry->curr_size = (FILESYSTEM_SIZE_MB * 1024 * 1024) - (flashfsUsedSpace * 2);
         entry->max_size = entry->curr_size;
         // This entry has timestamps corresponding to when the filesystem is mounted
         emfat_set_entry_cma(entry);
     }
 
     emfat_init(&emfat, "BETAFLT", entries);
+    LED0_OFF;
 }

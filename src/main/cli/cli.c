@@ -4816,16 +4816,19 @@ static void cliRcSmoothing(char *cmdline)
                 cliPrintLinef("%d.%dms", avgRxFrameMs / 1000, avgRxFrameMs % 1000);
             }
         }
-        cliPrint("# Input filter type: ");
-        cliPrintLinef(lookupTables[TABLE_RC_SMOOTHING_INPUT_TYPE].values[rcSmoothingData->inputFilterType]);
+        cliPrintLinef("# Input filter type: %s", lookupTables[TABLE_RC_SMOOTHING_INPUT_TYPE].values[rcSmoothingData->inputFilterType]);
         cliPrintf("# Active input cutoff: %dhz ", rcSmoothingData->inputCutoffFrequency);
         if (rcSmoothingData->inputCutoffSetting == 0) {
             cliPrintLine("(auto)");
         } else {
             cliPrintLine("(manual)");
         }
-        cliPrint("# Derivative filter type: ");
-        cliPrintLinef(lookupTables[TABLE_RC_SMOOTHING_DERIVATIVE_TYPE].values[rcSmoothingData->derivativeFilterType]);
+        cliPrintf("# Derivative filter type: %s", lookupTables[TABLE_RC_SMOOTHING_DERIVATIVE_TYPE].values[rcSmoothingData->derivativeFilterType]);
+        if (rcSmoothingData->derivativeFilterTypeSetting == RC_SMOOTHING_DERIVATIVE_AUTO) {
+            cliPrintLine(" (auto)");
+        } else {
+            cliPrintLinefeed();
+        }
         cliPrintf("# Active derivative cutoff: %dhz (", rcSmoothingData->derivativeCutoffFrequency);
         if (rcSmoothingData->derivativeFilterType == RC_SMOOTHING_DERIVATIVE_OFF) {
             cliPrintLine("off)");
@@ -6315,7 +6318,7 @@ const clicmd_t cmdTable[] = {
 #if defined(USE_GYRO_REGISTER_DUMP) && !defined(SIMULATOR_BUILD)
     CLI_COMMAND_DEF("gyroregisters", "dump gyro config registers contents", NULL, cliDumpGyroRegisters),
 #endif
-    CLI_COMMAND_DEF("help", NULL, NULL, cliHelp),
+    CLI_COMMAND_DEF("help", "display command help", "[search string]", cliHelp),
 #ifdef USE_LED_STRIP_STATUS_MODE
         CLI_COMMAND_DEF("led", "configure leds", NULL, cliLed),
 #endif
@@ -6400,19 +6403,38 @@ const clicmd_t cmdTable[] = {
 
 static void cliHelp(char *cmdline)
 {
-    UNUSED(cmdline);
+    bool anyMatches = false;
 
     for (uint32_t i = 0; i < ARRAYLEN(cmdTable); i++) {
-        cliPrint(cmdTable[i].name);
+        bool printEntry = false;
+        if (isEmpty(cmdline)) {
+            printEntry = true;
+        } else {
+            if (strcasestr(cmdTable[i].name, cmdline)
 #ifndef MINIMAL_CLI
-        if (cmdTable[i].description) {
-            cliPrintf(" - %s", cmdTable[i].description);
-        }
-        if (cmdTable[i].args) {
-            cliPrintf("\r\n\t%s", cmdTable[i].args);
-        }
+                || strcasestr(cmdTable[i].description, cmdline)
 #endif
-        cliPrintLinefeed();
+               ) {
+                printEntry = true;
+            }
+        } 
+
+        if (printEntry) {
+            anyMatches = true;
+            cliPrint(cmdTable[i].name);
+#ifndef MINIMAL_CLI
+            if (cmdTable[i].description) {
+                cliPrintf(" - %s", cmdTable[i].description);
+            }
+            if (cmdTable[i].args) {
+                cliPrintf("\r\n\t%s", cmdTable[i].args);
+            }
+#endif
+            cliPrintLinefeed();
+        }
+    }
+    if (!isEmpty(cmdline) && !anyMatches) {
+        cliPrintErrorLinef("NO MATCHES FOR '%s'", cmdline);
     }
 }
 
