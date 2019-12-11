@@ -230,7 +230,7 @@ TEST(LQTest, TestElement_LQ_SOURCE_NONE_SAMPLES)
 
     linkQualitySource = LQ_SOURCE_NONE;
 
-    osdConfigMutable()->item_pos[OSD_LINK_QUALITY] = OSD_POS(8, 1) | OSD_PROFILE_1_FLAG;
+    osdElementConfigMutable()->item_pos[OSD_LINK_QUALITY] = OSD_POS(8, 1) | OSD_PROFILE_1_FLAG;
     osdConfigMutable()->link_quality_alarm = 0;
 
     osdAnalyzeActiveElements();
@@ -270,7 +270,7 @@ TEST(LQTest, TestElement_LQ_SOURCE_NONE_VALUES)
 
     linkQualitySource = LQ_SOURCE_NONE;
 
-    osdConfigMutable()->item_pos[OSD_LINK_QUALITY] = OSD_POS(8, 1) | OSD_PROFILE_1_FLAG;
+    osdElementConfigMutable()->item_pos[OSD_LINK_QUALITY] = OSD_POS(8, 1) | OSD_PROFILE_1_FLAG;
     osdConfigMutable()->link_quality_alarm = 0;
 
     osdAnalyzeActiveElements();
@@ -301,7 +301,7 @@ TEST(LQTest, TestElementLQ_PROTOCOL_CRSF_VALUES)
     // given
     linkQualitySource = LQ_SOURCE_RX_PROTOCOL_CRSF;
 
-    osdConfigMutable()->item_pos[OSD_LINK_QUALITY] = OSD_POS(8, 1) | OSD_PROFILE_1_FLAG;
+    osdElementConfigMutable()->item_pos[OSD_LINK_QUALITY] = OSD_POS(8, 1) | OSD_PROFILE_1_FLAG;
     osdConfigMutable()->link_quality_alarm = 0;
 
     osdAnalyzeActiveElements();
@@ -336,7 +336,7 @@ TEST(LQTest, TestLQAlarm)
     // and
     // the following OSD elements are visible
 
-    osdConfigMutable()->item_pos[OSD_LINK_QUALITY] = OSD_POS(8, 1)  | OSD_PROFILE_1_FLAG;
+    osdElementConfigMutable()->item_pos[OSD_LINK_QUALITY] = OSD_POS(8, 1)  | OSD_PROFILE_1_FLAG;
 
     // and
     // this set of alarm values
@@ -447,7 +447,7 @@ extern "C" {
     void persistentObjectWrite(persistentObjectId_e, uint32_t) {}
     void failsafeOnRxSuspend(uint32_t ) {}
     void failsafeOnRxResume(void) {}
-    void featureDisable(uint32_t) { }
+    void featureDisableImmediate(uint32_t) { }
     bool rxMspFrameComplete(void) { return false; }
     bool isPPMDataBeingReceived(void) { return false; }
     bool isPWMDataBeingReceived(void) { return false; }
