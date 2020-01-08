@@ -20,12 +20,15 @@
 
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
+#include "drivers/bus.h"
 
-struct rxSpiConfig_s;
-struct rxRuntimeState_s;
-bool inavNrf24Init(const struct rxSpiConfig_s *rxSpiConfig, struct rxRuntimeState_s *rxRuntimeState, rxSpiExtiConfig_t *extiConfig);
-void inavNrf24SetRcDataFromPayload(uint16_t *rcData, const uint8_t *payload);
-rx_spi_received_e inavNrf24DataReceived(uint8_t *payload);
+bool icm42605AccDetect(accDev_t *acc);
+bool icm42605GyroDetect(gyroDev_t *gyro);
 
+void icm42605AccInit(accDev_t *acc);
+void icm42605GyroInit(gyroDev_t *gyro);
+
+uint8_t icm42605SpiDetect(const busDevice_t *bus);
+
+bool icm42605SpiAccDetect(accDev_t *acc);
+bool icm42605SpiGyroDetect(gyroDev_t *gyro);
