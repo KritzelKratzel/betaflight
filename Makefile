@@ -162,15 +162,15 @@ include $(ROOT)/make/mcu/$(TARGET_MCU).mk
 include $(ROOT)/make/openocd.mk
 
 # Configure default flash sizes for the targets (largest size specified gets hit first) if flash not specified already.
-ifeq ($(FLASH_SIZE),)
-ifneq ($(TARGET_FLASH),)
-FLASH_SIZE := $(TARGET_FLASH)
+ifeq ($(TARGET_FLASH_SIZE),)
+ifneq ($(MCU_FLASH_SIZE),)
+TARGET_FLASH_SIZE := $(MCU_FLASH_SIZE)
 else
-$(error FLASH_SIZE not configured for target $(TARGET))
+$(error MCU_FLASH_SIZE not configured for target $(TARGET))
 endif
 endif
 
-DEVICE_FLAGS  := $(DEVICE_FLAGS) -DFLASH_SIZE=$(FLASH_SIZE)
+DEVICE_FLAGS  := $(DEVICE_FLAGS) -DTARGET_FLASH_SIZE=$(TARGET_FLASH_SIZE)
 
 ifneq ($(HSE_VALUE),)
 DEVICE_FLAGS  := $(DEVICE_FLAGS) -DHSE_VALUE=$(HSE_VALUE)
@@ -305,6 +305,7 @@ TARGET_S19      = $(BIN_DIR)/$(FORKNAME)_$(FC_VER)_$(TARGET).s19
 TARGET_BIN      = $(BIN_DIR)/$(FORKNAME)_$(FC_VER)_$(TARGET).bin
 TARGET_HEX      = $(BIN_DIR)/$(FORKNAME)_$(FC_VER)_$(TARGET).hex
 TARGET_DFU      = $(BIN_DIR)/$(FORKNAME)_$(FC_VER)_$(TARGET).dfu
+TARGET_ZIP      = $(BIN_DIR)/$(FORKNAME)_$(FC_VER)_$(TARGET).zip
 TARGET_ELF      = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET).elf
 TARGET_EXST_ELF = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET)_EXST.elf
 TARGET_UNPATCHED_BIN = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET)_UNPATCHED.bin
@@ -449,6 +450,12 @@ all: $(CI_TARGETS)
 ## all_all : Build all targets (including legacy / unsupported)
 all_all: $(VALID_TARGETS)
 
+## unified : build all Unified Targets
+unified: $(UNIFIED_TARGETS)
+
+## unified_zip : build all Unified Targets as zip files (for posting on GitHub)
+unified_zip: $(addsuffix _zip,$(UNIFIED_TARGETS))
+
 ## legacy : Build legacy targets
 legacy: $(LEGACY_TARGETS)
 
@@ -485,7 +492,7 @@ $(VALID_TARGETS):
 $(NOBUILD_TARGETS):
 	$(MAKE) TARGET=$@
 
-TARGETS_CLEAN = $(addsuffix _clean,$(VALID_TARGETS) )
+TARGETS_CLEAN = $(addsuffix _clean,$(VALID_TARGETS))
 
 ## clean             : clean up temporary / machine-generated files
 clean:
@@ -508,7 +515,7 @@ $(TARGETS_CLEAN):
 ## clean_all         : clean all valid targets
 clean_all: $(TARGETS_CLEAN) test_clean
 
-TARGETS_FLASH = $(addsuffix _flash,$(VALID_TARGETS) )
+TARGETS_FLASH = $(addsuffix _flash,$(VALID_TARGETS))
 
 ## <TARGET>_flash    : build and flash a target
 $(TARGETS_FLASH):
@@ -545,6 +552,16 @@ ifneq ($(OPENOCD_COMMAND),)
 openocd-gdb: $(TARGET_ELF)
 	$(V0) $(OPENOCD_COMMAND) & $(CROSS_GDB) $(TARGET_ELF) -ex "target remote localhost:3333" -ex "load"
 endif
+
+TARGETS_ZIP = $(addsuffix _zip,$(VALID_TARGETS))
+
+## <TARGET>_zip    : build target and zip it (useful for posting to GitHub)
+$(TARGETS_ZIP):
+	$(V0) $(MAKE) hex TARGET=$(subst _zip,,$@)
+	$(V0) $(MAKE) zip TARGET=$(subst _zip,,$@)
+
+zip:
+	$(V0) zip $(TARGET_ZIP) $(TARGET_HEX)
 
 binary:
 	$(V0) $(MAKE) -j $(TARGET_BIN)
@@ -601,6 +618,7 @@ help: Makefile make/tools.mk
 targets:
 	@echo "Valid targets:       $(VALID_TARGETS)"
 	@echo "Built targets:       $(CI_TARGETS)"
+	@echo "Unified targets:     $(UNIFIED_TARGETS)"
 	@echo "Legacy targets:      $(LEGACY_TARGETS)"
 	@echo "Unsupported targets: $(UNSUPPORTED_TARGETS)"
 	@echo "Target:              $(TARGET)"

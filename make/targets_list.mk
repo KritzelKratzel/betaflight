@@ -79,6 +79,11 @@ UNSUPPORTED_TARGETS := \
     X_RACERSPI \
     ZCOREF3
 
+UNIFIED_TARGETS := STM32F405 \
+	STM32F411 \
+	STM32F7X2 \
+	STM32F745
+
 # Legacy targets are targets that have been replaced by Unified Target configurations
 LEGACY_TARGETS := MATEKF405 \
     AIKONF4 \
@@ -149,7 +154,17 @@ LEGACY_TARGETS := MATEKF405 \
     OMNINXT4 \
     REVO \
     DALRCF722DUAL \
-    OMNINXT7
+    OMNINXT7 \
+    BETAFLIGHTF4 \
+    EXUAVF4PRO \
+    FRSKYF4 \
+    KIWIF4 \
+    KIWIF4V2 \
+    PLUMF4 \
+    SKYZONEF405 \
+    XRACERF4 \
+    AG3XF7 \
+    YUPIF7
 
 CI_TARGETS := $(filter-out $(LEGACY_TARGETS) $(UNSUPPORTED_TARGETS), $(VALID_TARGETS))
 

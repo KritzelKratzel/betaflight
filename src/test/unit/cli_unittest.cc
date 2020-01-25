@@ -65,6 +65,7 @@ extern "C" {
     };
     const uint16_t valueTableEntryCount = ARRAYLEN(valueTable);
     const lookupTableEntry_t lookupTables[] = {};
+    const char * const lookupTableOsdDisplayPortDevice[] = {};
 
 
     PG_REGISTER(osdConfig_t, osdConfig, PG_OSD_CONFIG, 0);
@@ -309,6 +310,7 @@ const char *armingDisableFlagNames[]= {
 void getTaskInfo(cfTaskId_e, cfTaskInfo_t *) {}
 void getCheckFuncInfo(cfCheckFuncInfo_t *) {}
 void schedulerResetTaskMaxExecutionTime(cfTaskId_e) {}
+void schedulerResetCheckFunctionMaxExecutionTime(void) {}
 
 const char * const targetName = "UNITTEST";
 const char* const buildDate = "Jan 01 2017";
@@ -342,9 +344,9 @@ void serialSetCtrlLineState(serialPort_t *, uint16_t ) {}
 
 void serialSetBaudRateCb(serialPort_t *, void (*)(serialPort_t *context, uint32_t baud), serialPort_t *) {}
 
-char *getBoardName(void) { return NULL; };
-char *getManufacturerId(void) { return NULL; };
-bool boardInformationIsSet(void) { return true; };
+char *getBoardName(void) { return NULL; }
+char *getManufacturerId(void) { return NULL; }
+bool boardInformationIsSet(void) { return true; }
 
 bool setBoardName(char *newBoardName) { UNUSED(newBoardName); return true; };
 bool setManufacturerId(char *newManufacturerId) { UNUSED(newManufacturerId); return true; };
@@ -355,4 +357,5 @@ void analyzeModeActivationConditions(void) {}
 bool isModeActivationConditionConfigured(const modeActivationCondition_t *, const modeActivationCondition_t *) { return false; }
 
 void delay(uint32_t) {}
+displayPort_t *osdGetDisplayPort(osdDisplayPortDevice_e *) { return NULL; }
 }

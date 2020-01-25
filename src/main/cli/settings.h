@@ -32,6 +32,7 @@ typedef enum {
 #ifdef USE_GPS
     TABLE_GPS_PROVIDER,
     TABLE_GPS_SBAS_MODE,
+    TABLE_GPS_UBLOX_MODE,
 #endif
 #ifdef USE_GPS_RESCUE
     TABLE_GPS_RESCUE_SANITY_CHECK,
@@ -256,3 +257,5 @@ extern const char * const lookupTableRescueAltitudeMode[];
 extern const char * const lookupTableItermRelax[];
 
 extern const char * const lookupTableItermRelaxType[];
+
+extern const char * const lookupTableOsdDisplayPortDevice[];
