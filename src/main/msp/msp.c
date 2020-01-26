@@ -103,6 +103,7 @@
 
 #include "msp/msp_box.h"
 #include "msp/msp_protocol.h"
+#include "msp/msp_protocol_v2_common.h"
 #include "msp/msp_serial.h"
 
 #include "osd/osd.h"
@@ -557,7 +558,7 @@ static void serializeDataflashReadReply(sbuf_t *dst, uint32_t address, const uin
  * Returns true if the command was processd, false otherwise.
  * May set mspPostProcessFunc to a function to be called once the command has been processed
  */
-static bool mspCommonProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst, mspPostProcessFnPtr *mspPostProcessFn)
+static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProcessFnPtr *mspPostProcessFn)
 {
     UNUSED(mspPostProcessFn);
 
@@ -959,7 +960,7 @@ static bool mspCommonProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst, mspPostProce
     return true;
 }
 
-static bool mspProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst)
+static bool mspProcessOutCommand(int16_t cmdMSP, sbuf_t *dst)
 {
     bool unsupportedCommand = false;
 
@@ -1478,6 +1479,27 @@ static bool mspProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst)
             sbufWriteU8(dst, serialConfig()->portConfigs[i].blackbox_baudrateIndex);
         }
         break;
+    case MSP2_COMMON_SERIAL_CONFIG: {
+        uint8_t count = 0;
+        for (int i = 0; i < SERIAL_PORT_COUNT; i++) {
+            if (serialIsPortAvailable(serialConfig()->portConfigs[i].identifier)) {
+                count++;
+            }
+        }
+        sbufWriteU8(dst, count);
+        for (int i = 0; i < SERIAL_PORT_COUNT; i++) {
+            if (!serialIsPortAvailable(serialConfig()->portConfigs[i].identifier)) {
+                continue;
+            };
+            sbufWriteU8(dst, serialConfig()->portConfigs[i].identifier);
+            sbufWriteU32(dst, serialConfig()->portConfigs[i].functionMask);
+            sbufWriteU8(dst, serialConfig()->portConfigs[i].msp_baudrateIndex);
+            sbufWriteU8(dst, serialConfig()->portConfigs[i].gps_baudrateIndex);
+            sbufWriteU8(dst, serialConfig()->portConfigs[i].telemetry_baudrateIndex);
+            sbufWriteU8(dst, serialConfig()->portConfigs[i].blackbox_baudrateIndex);
+        }
+        break;
+    }
 
 #ifdef USE_LED_STRIP_STATUS_MODE
     case MSP_LED_COLORS:
@@ -1664,7 +1686,7 @@ static bool mspProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst)
 #endif
         // Added in MSP API 1.42
 #if defined(USE_GYRO_DATA_ANALYSE)
-        sbufWriteU8(dst, gyroConfig()->dyn_notch_range);
+        sbufWriteU8(dst, 0); // DEPRECATED 1.43: dyn_notch_range
         sbufWriteU8(dst, gyroConfig()->dyn_notch_width_percent);
         sbufWriteU16(dst, gyroConfig()->dyn_notch_q);
         sbufWriteU16(dst, gyroConfig()->dyn_notch_min_hz);
@@ -1674,13 +1696,18 @@ static bool mspProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst)
         sbufWriteU16(dst, 0);
         sbufWriteU16(dst, 0);
 #endif
-
 #if defined(USE_RPM_FILTER)
         sbufWriteU8(dst, rpmFilterConfig()->gyro_rpm_notch_harmonics);
         sbufWriteU8(dst, rpmFilterConfig()->gyro_rpm_notch_min);
 #else
         sbufWriteU8(dst, 0);
         sbufWriteU8(dst, 0);
+#endif
+#if defined(USE_GYRO_DATA_ANALYSE)
+        // Added in MSP API 1.43
+        sbufWriteU16(dst, gyroConfig()->dyn_notch_max_hz);
+#else
+        sbufWriteU16(dst, 0);
 #endif
 
         break;
@@ -1853,7 +1880,7 @@ static bool mspProcessOutCommand(uint8_t cmdMSP, sbuf_t *dst)
     return !unsupportedCommand;
 }
 
-static mspResult_e mspFcProcessOutCommandWithArg(mspDescriptor_t srcDesc, uint8_t cmdMSP, sbuf_t *src, sbuf_t *dst, mspPostProcessFnPtr *mspPostProcessFn)
+static mspResult_e mspFcProcessOutCommandWithArg(mspDescriptor_t srcDesc, int16_t cmdMSP, sbuf_t *src, sbuf_t *dst, mspPostProcessFnPtr *mspPostProcessFn)
 {
 
     switch (cmdMSP) {
@@ -2039,7 +2066,7 @@ static void mspFcDataFlashReadCommand(sbuf_t *dst, sbuf_t *src)
 }
 #endif
 
-static mspResult_e mspProcessInCommand(mspDescriptor_t srcDesc, uint8_t cmdMSP, sbuf_t *src)
+static mspResult_e mspProcessInCommand(mspDescriptor_t srcDesc, int16_t cmdMSP, sbuf_t *src)
 {
     uint32_t i;
     uint8_t value;
@@ -2475,7 +2502,7 @@ static mspResult_e mspProcessInCommand(mspDescriptor_t srcDesc, uint8_t cmdMSP, 
         if (sbufBytesRemaining(src) >= 8) {
             // Added in MSP API 1.42
 #if defined(USE_GYRO_DATA_ANALYSE)
-            gyroConfigMutable()->dyn_notch_range = sbufReadU8(src);
+            sbufReadU8(src); // DEPRECATED: dyn_notch_range
             gyroConfigMutable()->dyn_notch_width_percent = sbufReadU8(src);
             gyroConfigMutable()->dyn_notch_q = sbufReadU16(src);
             gyroConfigMutable()->dyn_notch_min_hz = sbufReadU16(src);
@@ -2485,7 +2512,6 @@ static mspResult_e mspProcessInCommand(mspDescriptor_t srcDesc, uint8_t cmdMSP, 
             sbufReadU16(src);
             sbufReadU16(src);
 #endif
-
 #if defined(USE_RPM_FILTER)
             rpmFilterConfigMutable()->gyro_rpm_notch_harmonics = sbufReadU8(src);
             rpmFilterConfigMutable()->gyro_rpm_notch_min = sbufReadU8(src);
@@ -2494,6 +2520,15 @@ static mspResult_e mspProcessInCommand(mspDescriptor_t srcDesc, uint8_t cmdMSP, 
             sbufReadU8(src);
 #endif
         }
+        if (sbufBytesRemaining(src) >= 1) {
+#if defined(USE_GYRO_DATA_ANALYSE)
+            // Added in MSP API 1.43
+            gyroConfigMutable()->dyn_notch_max_hz = sbufReadU16(src);
+#else
+            sbufReadU16(src);
+#endif
+        }
+        
 
         // reinitialize the gyro filters with the new values
         validateAndFixGyroConfig();
@@ -3048,6 +3083,38 @@ static mspResult_e mspProcessInCommand(mspDescriptor_t srcDesc, uint8_t cmdMSP, 
             }
         }
         break;
+    case MSP2_COMMON_SET_SERIAL_CONFIG: {
+        if (dataSize < 1) {
+            return MSP_RESULT_ERROR;
+        }
+        unsigned count = sbufReadU8(src);
+        unsigned portConfigSize = (dataSize - 1) / count;
+        unsigned expectedPortSize = sizeof(uint8_t) + sizeof(uint32_t) + (sizeof(uint8_t) * 4);
+        if (portConfigSize < expectedPortSize) {
+            return MSP_RESULT_ERROR;
+        }
+        for (unsigned ii = 0; ii < count; ii++) {
+            unsigned start = sbufBytesRemaining(src);
+            uint8_t identifier = sbufReadU8(src);
+            serialPortConfig_t *portConfig = serialFindPortConfigurationMutable(identifier);
+
+            if (!portConfig) {
+                return MSP_RESULT_ERROR;
+            }
+
+            portConfig->identifier = identifier;
+            portConfig->functionMask = sbufReadU32(src);
+            portConfig->msp_baudrateIndex = sbufReadU8(src);
+            portConfig->gps_baudrateIndex = sbufReadU8(src);
+            portConfig->telemetry_baudrateIndex = sbufReadU8(src);
+            portConfig->blackbox_baudrateIndex = sbufReadU8(src);
+            // Skip unknown bytes
+            while (start - sbufBytesRemaining(src) < portConfigSize && sbufBytesRemaining(src)) {
+                sbufReadU8(src);
+            }
+        }
+        break;
+    }
 
 #ifdef USE_LED_STRIP_STATUS_MODE
     case MSP_SET_LED_COLORS:
@@ -3170,7 +3237,7 @@ static mspResult_e mspProcessInCommand(mspDescriptor_t srcDesc, uint8_t cmdMSP, 
     return MSP_RESULT_ACK;
 }
 
-static mspResult_e mspCommonProcessInCommand(mspDescriptor_t srcDesc, uint8_t cmdMSP, sbuf_t *src, mspPostProcessFnPtr *mspPostProcessFn)
+static mspResult_e mspCommonProcessInCommand(mspDescriptor_t srcDesc, int16_t cmdMSP, sbuf_t *src, mspPostProcessFnPtr *mspPostProcessFn)
 {
     UNUSED(mspPostProcessFn);
     const unsigned int dataSize = sbufBytesRemaining(src);
@@ -3425,7 +3492,7 @@ mspResult_e mspFcProcessCommand(mspDescriptor_t srcDesc, mspPacket_t *cmd, mspPa
     int ret = MSP_RESULT_ACK;
     sbuf_t *dst = &reply->buf;
     sbuf_t *src = &cmd->buf;
-    const uint8_t cmdMSP = cmd->cmd;
+    const int16_t cmdMSP = cmd->cmd;
     // initialize reply by default
     reply->cmd = cmd->cmd;
 
