@@ -724,13 +724,19 @@ void init(void)
 
     systemState |= SYSTEM_STATE_SENSORS_READY;
 
-    // gyro.targetLooptime set in sensorsAutodetect(),
-    // so we are ready to call validateAndFixGyroConfig(), pidInit(), and setAccelerationFilter()
+    // Set the targetLooptime based on the detected gyro sampleRateHz and pid_process_denom
+    gyroSetTargetLooptime(pidConfig()->pid_process_denom);
+
+    // Validate and correct the gyro config or PID loop time if needed
     validateAndFixGyroConfig();
+
+    // Now reset the targetLooptime as it's possible for the validation to change the pid_process_denom
+    gyroSetTargetLooptime(pidConfig()->pid_process_denom);
+
+    // Finally initialize the gyro filtering
+    gyroInitFilters();
+
     pidInit(currentPidProfile);
-#ifdef USE_ACC
-    accInitFilters();
-#endif
 
 #ifdef USE_PID_AUDIO
     pidAudioInit();
@@ -901,17 +907,6 @@ void init(void)
 
     batteryInit(); // always needs doing, regardless of features.
 
-#ifdef USE_DASHBOARD
-    if (featureIsEnabled(FEATURE_DASHBOARD)) {
-#ifdef USE_OLED_GPS_DEBUG_PAGE_ONLY
-        dashboardShowFixedPage(PAGE_GPS);
-#else
-        dashboardResetPageCycling();
-        dashboardEnablePageCycling();
-#endif
-    }
-#endif
-
 #ifdef USE_RCDEVICE
     rcdeviceInit();
 #endif // USE_RCDEVICE
@@ -1003,6 +998,12 @@ void init(void)
     // Dashbord will register with CMS by itself.
     if (featureIsEnabled(FEATURE_DASHBOARD)) {
         dashboardInit();
+#ifdef USE_OLED_GPS_DEBUG_PAGE_ONLY
+        dashboardShowFixedPage(PAGE_GPS);
+#else
+        dashboardResetPageCycling();
+        dashboardEnablePageCycling();
+#endif
     }
 #endif
 

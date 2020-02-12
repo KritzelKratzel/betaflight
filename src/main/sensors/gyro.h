@@ -32,9 +32,16 @@
 #include "flight/gyroanalyse.h"
 #endif
 
+#include "flight/pid.h"
+
 #include "pg/pg.h"
 
 #define FILTER_FREQUENCY_MAX 4000 // maximum frequency for filter cutoffs (nyquist limit of 8K max sampling)
+
+#ifdef USE_YAW_SPIN_RECOVERY
+#define YAW_SPIN_RECOVERY_THRESHOLD_MIN 500
+#define YAW_SPIN_RECOVERY_THRESHOLD_MAX 1950
+#endif
 
 typedef union gyroLowpassFilter_u {
     pt1Filter_t pt1FilterState;
@@ -42,10 +49,15 @@ typedef union gyroLowpassFilter_u {
 } gyroLowpassFilter_t;
 
 typedef struct gyro_s {
+    uint16_t sampleRateHz;
     uint32_t targetLooptime;
+    uint32_t sampleLooptime;
     float scale;
     float gyroADC[XYZ_AXIS_COUNT];     // aligned, calibrated, scaled, but unfiltered data from the sensor(s)
     float gyroADCf[XYZ_AXIS_COUNT];    // filtered gyro data
+    uint8_t sampleCount;               // gyro sensor sample counter
+    float sampleSum[XYZ_AXIS_COUNT];   // summed samples used for downsampling
+    bool downsampleFilterEnabled;      // if true then downsample using gyro lowpass 2, otherwise use averaging
 
     gyroDev_t *rawSensorDev;           // pointer to the sensor providing the raw data for DEBUG_GYRO_RAW
 
@@ -72,9 +84,12 @@ typedef struct gyro_s {
 #ifdef USE_GYRO_DATA_ANALYSE
     gyroAnalyseState_t gyroAnalyseState;
 #endif
+
+    uint16_t accSampleRateHz;
 } gyro_t;
 
 extern gyro_t gyro;
+extern uint8_t activePidLoopDenom;
 
 enum {
     GYRO_OVERFLOW_CHECK_NONE = 0,
@@ -87,6 +102,12 @@ enum {
     DYN_LPF_PT1,
     DYN_LPF_BIQUAD
 };
+
+typedef enum {
+    YAW_SPIN_RECOVERY_OFF,
+    YAW_SPIN_RECOVERY_ON,
+    YAW_SPIN_RECOVERY_AUTO
+} yawSpinRecoveryMode_e;
 
 #define GYRO_CONFIG_USE_GYRO_1      0
 #define GYRO_CONFIG_USE_GYRO_2      1
@@ -109,7 +130,6 @@ typedef enum gyroDetectionFlags_e {
 
 typedef struct gyroConfig_s {
     uint8_t  gyroMovementCalibrationThreshold; // people keep forgetting that moving model while init results in wrong gyro offsets. and then they never reset gyro. so this is now on by default.
-    uint8_t  gyro_sync_denom;                  // Gyro sample divider
     uint8_t  gyro_hardware_lpf;                // gyro DLPF setting
 
     uint8_t  gyro_high_fsr;
@@ -149,9 +169,10 @@ PG_DECLARE(gyroConfig_t, gyroConfig);
 
 void gyroPreInit(void);
 bool gyroInit(void);
-
+void gyroSetTargetLooptime(uint8_t pidDenom);
 void gyroInitFilters(void);
-void gyroUpdate(timeUs_t currentTimeUs);
+void gyroUpdate(void);
+void gyroFiltering(timeUs_t currentTimeUs);
 bool gyroGetAccumulationAverage(float *accumulation);
 const busDevice_t *gyroSensorBus(void);
 struct mpuDetectionResult_s;
@@ -170,4 +191,7 @@ gyroDetectionFlags_t getGyroDetectionFlags(void);
 #ifdef USE_DYN_LPF
 float dynThrottle(float throttle);
 void dynLpfGyroUpdate(float throttle);
+#endif
+#ifdef USE_YAW_SPIN_RECOVERY
+void initYawSpinRecovery(int maxYawRate);
 #endif

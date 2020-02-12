@@ -103,6 +103,7 @@
 
 #include "msp/msp_box.h"
 #include "msp/msp_protocol.h"
+#include "msp/msp_protocol_v2_betaflight.h"
 #include "msp/msp_protocol_v2_common.h"
 #include "msp/msp_serial.h"
 
@@ -120,6 +121,7 @@
 #include "pg/vtx_table.h"
 
 #include "rx/rx.h"
+#include "rx/rx_bind.h"
 #include "rx/msp.h"
 
 #include "scheduler/scheduler.h"
@@ -599,6 +601,7 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
 #define TARGET_HAS_FLASH_BOOTLOADER_BIT 3
 #define TARGET_SUPPORTS_CUSTOM_DEFAULTS_BIT 4
 #define TARGET_HAS_CUSTOM_DEFAULTS_BIT 5
+#define TARGET_SUPPORTS_RX_BIND_BIT 6
 
         uint8_t targetCapabilities = 0;
 #ifdef USE_VCP
@@ -618,6 +621,9 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
         if (hasCustomDefaults()) {
             targetCapabilities |= 1 << TARGET_HAS_CUSTOM_DEFAULTS_BIT;
         }
+#endif
+#if defined(USE_RX_BIND)
+        targetCapabilities |= (getRxBindSupported() << TARGET_SUPPORTS_RX_BIND_BIT);
 #endif
 
         sbufWriteU8(dst, targetCapabilities);
@@ -654,6 +660,9 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
 
         // Added in API version 1.42
         sbufWriteU8(dst, systemConfig()->configurationState);
+
+        //Added in API version 1.43
+        sbufWriteU16(dst, gyro.sampleRateHz); // informational so the configurator can display the correct gyro/pid frequencies in the drop-down
 
         break;
     }
@@ -971,7 +980,7 @@ static bool mspProcessOutCommand(int16_t cmdMSP, sbuf_t *dst)
             boxBitmask_t flightModeFlags;
             const int flagBits = packFlightModeFlags(&flightModeFlags);
 
-            sbufWriteU16(dst, getTaskDeltaTime(TASK_GYROPID));
+            sbufWriteU16(dst, getTaskDeltaTime(TASK_PID));
 #ifdef USE_I2C
             sbufWriteU16(dst, i2cGetErrorCounter());
 #else
@@ -1634,7 +1643,7 @@ static bool mspProcessOutCommand(int16_t cmdMSP, sbuf_t *dst)
         break;
     }
     case MSP_ADVANCED_CONFIG:
-        sbufWriteU8(dst, gyroConfig()->gyro_sync_denom);
+        sbufWriteU8(dst, 1);  // was gyroConfig()->gyro_sync_denom - removed in API 1.43
         sbufWriteU8(dst, pidConfig()->pid_process_denom);
         sbufWriteU8(dst, motorConfig()->dev.useUnsyncedPwm);
         sbufWriteU8(dst, motorConfig()->dev.motorPwmProtocol);
@@ -2424,7 +2433,7 @@ static mspResult_e mspProcessInCommand(mspDescriptor_t srcDesc, int16_t cmdMSP, 
     }
 
     case MSP_SET_ADVANCED_CONFIG:
-        gyroConfigMutable()->gyro_sync_denom = sbufReadU8(src);
+        sbufReadU8(src); // was gyroConfigMutable()->gyro_sync_denom - removed in API 1.43
         pidConfigMutable()->pid_process_denom = sbufReadU8(src);
         motorConfigMutable()->dev.useUnsyncedPwm = sbufReadU8(src);
 #ifdef USE_DSHOT
@@ -3230,6 +3239,14 @@ static mspResult_e mspProcessInCommand(mspDescriptor_t srcDesc, int16_t cmdMSP, 
         break;
 #endif
 #endif // USE_BOARD_INFO
+#if defined(USE_RX_BIND)
+    case MSP2_BETAFLIGHT_BIND:
+        if (!startRxBind()) {
+            return MSP_RESULT_ERROR;
+        }
+
+        break;
+#endif
     default:
         // we do not know how to handle the (valid) message, indicate error MSP $M!
         return MSP_RESULT_ERROR;

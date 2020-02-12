@@ -1237,7 +1237,9 @@ static bool blackboxWriteSysinfo(void)
         BLACKBOX_PRINT_HEADER_LINE("Firmware type", "%s",                   "Cleanflight");
         BLACKBOX_PRINT_HEADER_LINE("Firmware revision", "%s %s (%s) %s",    FC_FIRMWARE_NAME, FC_VERSION_STRING, shortGitRevision, targetName);
         BLACKBOX_PRINT_HEADER_LINE("Firmware date", "%s %s",                buildDate, buildTime);
+#ifdef USE_BOARD_INFO
         BLACKBOX_PRINT_HEADER_LINE("Board information", "%s %s",            getManufacturerId(), getBoardName());
+#endif
         BLACKBOX_PRINT_HEADER_LINE("Log start datetime", "%s",              blackboxGetStartDateTime(buf));
         BLACKBOX_PRINT_HEADER_LINE("Craft name", "%s",                      pilotConfig()->name);
         BLACKBOX_PRINT_HEADER_LINE("I interval", "%d",                      blackboxIInterval);
@@ -1270,9 +1272,9 @@ static bool blackboxWriteSysinfo(void)
             }
             );
 
-        BLACKBOX_PRINT_HEADER_LINE("looptime", "%d",                        gyro.targetLooptime);
-        BLACKBOX_PRINT_HEADER_LINE("gyro_sync_denom", "%d",                 gyroConfig()->gyro_sync_denom);
-        BLACKBOX_PRINT_HEADER_LINE("pid_process_denom", "%d",               pidConfig()->pid_process_denom);
+        BLACKBOX_PRINT_HEADER_LINE("looptime", "%d",                        gyro.sampleLooptime);
+        BLACKBOX_PRINT_HEADER_LINE("gyro_sync_denom", "%d",                 1);
+        BLACKBOX_PRINT_HEADER_LINE("pid_process_denom", "%d",               activePidLoopDenom);
         BLACKBOX_PRINT_HEADER_LINE("thr_mid", "%d",                         currentControlRateProfile->thrMid8);
         BLACKBOX_PRINT_HEADER_LINE("thr_expo", "%d",                        currentControlRateProfile->thrExpo8);
         BLACKBOX_PRINT_HEADER_LINE("tpa_rate", "%d",                        currentControlRateProfile->dynThrPID);
@@ -1824,13 +1826,8 @@ void blackboxInit(void)
     // an I-frame is written every 32ms
     // blackboxUpdate() is run in synchronisation with the PID loop
     // targetPidLooptime is 1000 for 1kHz loop, 500 for 2kHz loop etc, targetPidLooptime is rounded for short looptimes
-    if (targetPidLooptime == 31) { // rounded from 31.25us
-        blackboxIInterval = 1024;
-    } else if (targetPidLooptime == 63) { // rounded from 62.5us
-        blackboxIInterval = 512;
-    } else {
-        blackboxIInterval = (uint16_t)(32 * 1000 / targetPidLooptime);
-    }
+    blackboxIInterval = (uint16_t)(32 * 1000 / targetPidLooptime);
+
     // by default p_ratio is 32 and a P-frame is written every 1ms
     // if p_ratio is zero then no P-frames are logged
     if (blackboxConfig()->p_ratio == 0) {

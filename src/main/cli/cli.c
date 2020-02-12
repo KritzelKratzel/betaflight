@@ -54,6 +54,7 @@ bool cliMode = false;
 #include "common/typeconversion.h"
 #include "common/utils.h"
 
+#include "config/config.h"
 #include "config/config_eeprom.h"
 #include "config/feature.h"
 
@@ -94,7 +95,6 @@ bool cliMode = false;
 #include "drivers/vtx_table.h"
 
 #include "fc/board_info.h"
-#include "config/config.h"
 #include "fc/controlrate_profile.h"
 #include "fc/core.h"
 #include "fc/rc.h"
@@ -142,9 +142,8 @@ bool cliMode = false;
 #include "pg/pg.h"
 #include "pg/pg_ids.h"
 #include "pg/rx.h"
-#include "pg/rx_spi_cc2500.h"
-#include "pg/rx_spi.h"
 #include "pg/rx_pwm.h"
+#include "pg/rx_spi_cc2500.h"
 #include "pg/serial_uart.h"
 #include "pg/sdio.h"
 #include "pg/timerio.h"
@@ -152,10 +151,8 @@ bool cliMode = false;
 #include "pg/usb.h"
 #include "pg/vtx_table.h"
 
-#include "rx/rx.h"
-#include "rx/spektrum.h"
-#include "rx/rx_spi_common.h"
-#include "rx/srxl2.h"
+#include "rx/rx_bind.h"
+#include "rx/rx_spi.h"
 
 #include "scheduler/scheduler.h"
 
@@ -3343,62 +3340,13 @@ static void cliBeeper(char *cmdline)
 }
 #endif
 
-#if defined(USE_RX_SPI) || defined (USE_SERIALRX_SRXL2)
+#if defined(USE_RX_BIND)
 void cliRxBind(char *cmdline){
     UNUSED(cmdline);
-    switch (rxRuntimeState.rxProvider) {
-    default:
+    if (!startRxBind()) {
         cliPrint("Not supported.");
-
-        break;
-    case RX_PROVIDER_SERIAL:
-        switch (rxRuntimeState.serialrxProvider) {
-        default:
-            cliPrint("Not supported.");
-            break;
-#if defined(USE_SERIALRX_SRXL2)
-        case SERIALRX_SRXL2:
-            srxl2Bind();
-            cliPrint("Binding SRXL2 receiver...");
-            break;
-#endif
-        }
-
-        break;
-#if defined(USE_RX_SPI)
-    case RX_PROVIDER_SPI:
-        switch (rxSpiConfig()->rx_spi_protocol) {
-        default:
-            cliPrint("Not supported.");
-            break;
-#if defined(USE_RX_FRSKY_SPI)
-#if defined(USE_RX_FRSKY_SPI_D)
-        case RX_SPI_FRSKY_D:
-#endif
-#if defined(USE_RX_FRSKY_SPI_X)
-        case RX_SPI_FRSKY_X:
-        case RX_SPI_FRSKY_X_LBT:
-#endif
-#endif // USE_RX_FRSKY_SPI
-#ifdef USE_RX_SFHSS_SPI
-        case RX_SPI_SFHSS:
-#endif
-#ifdef USE_RX_FLYSKY
-        case RX_SPI_A7105_FLYSKY:
-        case RX_SPI_A7105_FLYSKY_2A:
-#endif
-#ifdef USE_RX_SPEKTRUM
-        case RX_SPI_CYRF6936_DSM:
-#endif
-#if defined(USE_RX_FRSKY_SPI) || defined(USE_RX_SFHSS_SPI) || defined(USE_RX_FLYSKY) || defined(USE_RX_SPEKTRUM)
-            rxSpiBind();
-            cliPrint("Binding...");
-            break;
-#endif
-        }
-
-        break;
-#endif
+    } else {
+        cliPrint("Binding...");
     }
 }
 #endif
@@ -4680,11 +4628,11 @@ static void cliStatus(char *cmdline)
 
     // Run status
 
-    const int gyroRate = getTaskDeltaTime(TASK_GYROPID) == 0 ? 0 : (int)(1000000.0f / ((float)getTaskDeltaTime(TASK_GYROPID)));
+    const int gyroRate = getTaskDeltaTime(TASK_GYRO) == 0 ? 0 : (int)(1000000.0f / ((float)getTaskDeltaTime(TASK_GYRO)));
     const int rxRate = currentRxRefreshRate == 0 ? 0 : (int)(1000000.0f / ((float)currentRxRefreshRate));
     const int systemRate = getTaskDeltaTime(TASK_SYSTEM) == 0 ? 0 : (int)(1000000.0f / ((float)getTaskDeltaTime(TASK_SYSTEM)));
     cliPrintLinef("CPU:%d%%, cycle time: %d, GYRO rate: %d, RX rate: %d, System rate: %d",
-            constrain(averageSystemLoadPercent, 0, 100), getTaskDeltaTime(TASK_GYROPID), gyroRate, rxRate, systemRate);
+            constrain(averageSystemLoadPercent, 0, 100), getTaskDeltaTime(TASK_GYRO), gyroRate, rxRate, systemRate);
 
     // Battery meter
 
@@ -4731,21 +4679,8 @@ static void cliTasks(char *cmdline)
         cfTaskInfo_t taskInfo;
         getTaskInfo(taskId, &taskInfo);
         if (taskInfo.isEnabled) {
-            int taskFrequency;
-            int subTaskFrequency = 0;
-            if (taskId == TASK_GYROPID) {
-                subTaskFrequency = taskInfo.movingAverageCycleTime == 0.0f ? 0.0f : (int)(1000000.0f / (taskInfo.movingAverageCycleTime));
-                taskFrequency = subTaskFrequency / pidConfig()->pid_process_denom;
-                if (pidConfig()->pid_process_denom > 1) {
-                    cliPrintf("%02d - (%15s) ", taskId, taskInfo.taskName);
-                } else {
-                    taskFrequency = subTaskFrequency;
-                    cliPrintf("%02d - (%11s/%3s) ", taskId, taskInfo.subTaskName, taskInfo.taskName);
-                }
-            } else {
-                taskFrequency = taskInfo.averageDeltaTime == 0 ? 0 : (int)(1000000.0f / ((float)taskInfo.averageDeltaTime));
-                cliPrintf("%02d - (%15s) ", taskId, taskInfo.taskName);
-            }
+            int taskFrequency = taskInfo.averageDeltaTime == 0 ? 0 : lrintf(1e6f / taskInfo.averageDeltaTime);
+            cliPrintf("%02d - (%15s) ", taskId, taskInfo.taskName);
             const int maxLoad = taskInfo.maxExecutionTime == 0 ? 0 :(taskInfo.maxExecutionTime * taskFrequency + 5000) / 1000;
             const int averageLoad = taskInfo.averageExecutionTime == 0 ? 0 : (taskInfo.averageExecutionTime * taskFrequency + 5000) / 1000;
             if (taskId != TASK_SERIAL) {
@@ -4758,9 +4693,6 @@ static void cliTasks(char *cmdline)
                         maxLoad/10, maxLoad%10, averageLoad/10, averageLoad%10, taskInfo.totalExecutionTime / 1000);
             } else {
                 cliPrintLinef("%6d", taskFrequency);
-            }
-            if (taskId == TASK_GYROPID && pidConfig()->pid_process_denom > 1) {
-                cliPrintLinef("   - (%15s) %6d", taskInfo.subTaskName, subTaskFrequency);
             }
 
             schedulerResetTaskMaxExecutionTime(taskId);
@@ -6276,7 +6208,7 @@ const clicmd_t cmdTable[] = {
     CLI_COMMAND_DEF("beeper", "enable/disable beeper for a condition", "list\r\n"
         "\t<->[name]", cliBeeper),
 #endif // USE_BEEPER
-#if defined(USE_RX_SPI) || defined (USE_SERIALRX_SRXL2)
+#if defined(USE_RX_BIND)
     CLI_COMMAND_DEF("bind_rx", "initiate binding for RX SPI or SRXL2", NULL, cliRxBind),
 #endif
 #if defined(USE_FLASH_BOOT_LOADER)
