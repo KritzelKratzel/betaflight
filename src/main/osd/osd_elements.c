@@ -945,9 +945,10 @@ static void osdBackgroundHorizonSidebars(osdElementParms_t *element)
 static void osdElementLinkQuality(osdElementParms_t *element)
 {
     uint16_t osdLinkQuality = 0;
-    if (linkQualitySource == LQ_SOURCE_RX_PROTOCOL_CRSF) { // 0-300
-        osdLinkQuality = rxGetLinkQuality()  / 3.41;
-        tfp_sprintf(element->buff, "%c%3d", SYM_LINK_QUALITY, osdLinkQuality);
+    if (linkQualitySource == LQ_SOURCE_RX_PROTOCOL_CRSF) { // 0-99
+        osdLinkQuality = rxGetLinkQuality();
+        const uint8_t osdRfMode = rxGetRfMode();
+        tfp_sprintf(element->buff, "%c%1d:%2d", SYM_LINK_QUALITY, osdRfMode, osdLinkQuality);
     } else { // 0-9
         osdLinkQuality = rxGetLinkQuality() * 10 / LINK_QUALITY_MAX_VALUE;
         if (osdLinkQuality >= 10) {
@@ -1488,6 +1489,14 @@ static void osdElementWarnings(osdElementParms_t *element)
         return;
     }
 #endif // USE_RC_SMOOTHING_FILTER
+
+    // Show warning if mah consumed is over the configured limit
+    if (osdWarnGetState(OSD_WARNING_OVER_CAP) && ARMING_FLAG(ARMED) && osdConfig()->cap_alarm > 0 && getMAhDrawn() >= osdConfig()->cap_alarm) {
+        tfp_sprintf(element->buff, "OVER CAP");
+        element->attr = DISPLAYPORT_ATTR_WARNING;
+        SET_BLINK(OSD_WARNINGS);
+        return;
+    }
 
     // Show warning if battery is not fresh
     if (osdWarnGetState(OSD_WARNING_BATTERY_NOT_FULL) && !(ARMING_FLAG(ARMED) || ARMING_FLAG(WAS_EVER_ARMED)) && (getBatteryState() == BATTERY_OK)
