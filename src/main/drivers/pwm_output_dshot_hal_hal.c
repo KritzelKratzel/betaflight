@@ -82,17 +82,17 @@ void pwmChannelDMAStart(TIM_HandleTypeDef *htim, uint32_t Channel, uint32_t *pDa
         HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_CC1], (uint32_t)pData, (uint32_t)&htim->Instance->CCR1, Length);
         __HAL_TIM_ENABLE_DMA(htim, TIM_DMA_CC1);
     break;
-    
+
     case TIM_CHANNEL_2:
         HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_CC2], (uint32_t)pData, (uint32_t)&htim->Instance->CCR2, Length);
         __HAL_TIM_ENABLE_DMA(htim, TIM_DMA_CC2);
         break;
-    
+
     case TIM_CHANNEL_3:
         HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_CC3], (uint32_t)pData, (uint32_t)&htim->Instance->CCR3,Length);
         __HAL_TIM_ENABLE_DMA(htim, TIM_DMA_CC3);
         break;
-    
+
     case TIM_CHANNEL_4:
         HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_CC4], (uint32_t)pData, (uint32_t)&htim->Instance->CCR4, Length);
         __HAL_TIM_ENABLE_DMA(htim, TIM_DMA_CC4);
@@ -132,11 +132,11 @@ void pwmChannelDMAStop(TIM_HandleTypeDef *htim, uint32_t Channel)
 void pwmBurstDMAStart(TIM_HandleTypeDef *htim, uint32_t BurstBaseAddress, uint32_t BurstRequestSrc, uint32_t BurstUnit, uint32_t* BurstBuffer, uint32_t BurstLength)
 {
     // Setup DMA stream
-    HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_UPDATE], (uint32_t)BurstBuffer, (uint32_t)&htim->Instance->DMAR, BurstLength); 
+    HAL_DMA_Start_IT(htim->hdma[TIM_DMA_ID_UPDATE], (uint32_t)BurstBuffer, (uint32_t)&htim->Instance->DMAR, BurstLength);
 
     // Configure burst mode DMA */
-   htim->Instance->DCR = BurstBaseAddress | BurstUnit;  
-   
+   htim->Instance->DCR = BurstBaseAddress | BurstUnit;
+
     // Enable burst mode DMA
     __HAL_TIM_ENABLE_DMA(htim, BurstRequestSrc);
 }
@@ -200,7 +200,7 @@ void pwmCompleteDshotMotorUpdate(void)
 
             // Transfer CCR1 through CCR4 for each burst
             pwmBurstDMAStart(&burstDmaTimer->timHandle,
-                    TIM_DMABASE_CCR1, TIM_DMA_UPDATE, TIM_DMABURSTLENGTH_4TRANSFERS, 
+                    TIM_DMABASE_CCR1, TIM_DMA_UPDATE, TIM_DMABURSTLENGTH_4TRANSFERS,
                     (uint32_t*)burstDmaTimer->dmaBurstBuffer, burstDmaTimer->dmaBurstLength);
         }
     } else
@@ -384,7 +384,7 @@ P    -    High -     High -
         memset(motor->timer->dmaBurstBuffer, 0, DSHOT_DMA_BUFFER_SIZE * 4 * sizeof(uint32_t));
 
         /* Set hdma_tim instance */
-        motor->timer->hdma_tim.Instance = dmaRef;
+        motor->timer->hdma_tim.Instance = (DMA_ARCH_TYPE *)dmaRef;
         motor->timer->hdma_tim.Init.Request = dmaChannel;
 
         /* Link hdma_tim to hdma[TIM_DMA_ID_UPDATE] (update) */
@@ -412,7 +412,7 @@ P    -    High -     High -
         motor->dmaBuffer[DSHOT_DMA_BUFFER_SIZE-2] = 0; // XXX Is this necessary? -> probably.
         motor->dmaBuffer[DSHOT_DMA_BUFFER_SIZE-1] = 0; // XXX Is this necessary?
 
-        motor->hdma_tim.Instance = dmaRef;
+        motor->hdma_tim.Instance = (DMA_ARCH_TYPE *)dmaRef;
         motor->hdma_tim.Init.Request = dmaChannel;
 
         /* Link hdma_tim to hdma[x] (channelx) */

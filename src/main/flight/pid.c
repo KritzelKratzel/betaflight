@@ -62,6 +62,12 @@
 
 #include "pid.h"
 
+typedef enum {
+    LEVEL_MODE_OFF = 0,
+    LEVEL_MODE_R,
+    LEVEL_MODE_RP,
+} levelMode_e;
+
 const char pidNames[] =
     "ROLL;"
     "PITCH;"
@@ -652,7 +658,7 @@ void pidInitConfig(const pidProfile_t *pidProfile)
 #endif
     itermRotation = pidProfile->iterm_rotation;
     antiGravityMode = pidProfile->antiGravityMode;
-    
+
     // Calculate the anti-gravity value that will trigger the OSD display.
     // For classic AG it's either 1.0 for off and > 1.0 for on.
     // For the new AG it's a continuous floating value so we want to trigger the OSD
@@ -729,7 +735,7 @@ void pidInitConfig(const pidProfile_t *pidProfile)
         thrustLinearizationReciprocal = 1.0f / thrustLinearization;
         thrustLinearizationB = (1.0f - thrustLinearization) / (2.0f * thrustLinearization);
     }
-#endif    
+#endif
 #if defined(USE_D_MIN)
     for (int axis = FD_ROLL; axis <= FD_YAW; ++axis) {
         const uint8_t dMin = pidProfile->d_min[axis];
@@ -1004,7 +1010,7 @@ static FAST_CODE_NOINLINE float applyAcroTrainer(int axis, const rollAndPitchTri
         if (acroTrainerAxisState[axis] != 0) {
             ret = constrainf(((acroTrainerAngleLimit * angleSign) - currentAngle) * acroTrainerGain, -ACRO_TRAINER_SETPOINT_LIMIT, ACRO_TRAINER_SETPOINT_LIMIT);
         } else {
-        
+
         // Not currently over the limit so project the angle based on current angle and
         // gyro angular rate using a sliding window based on gyro rate (faster rotation means larger window.
         // If the projected angle exceeds the limit then apply limiting to minimize overshoot.
@@ -1021,7 +1027,7 @@ static FAST_CODE_NOINLINE float applyAcroTrainer(int axis, const rollAndPitchTri
         if (resetIterm) {
             pidData[axis].I = 0;
         }
- 
+
         if (axis == acroTrainerDebugAxis) {
             DEBUG_SET(DEBUG_ACRO_TRAINER, 0, lrintf(currentAngle * 10.0f));
             DEBUG_SET(DEBUG_ACRO_TRAINER, 1, acroTrainerAxisState[axis]);
@@ -1295,13 +1301,21 @@ void FAST_CODE pidController(const pidProfile_t *pidProfile, timeUs_t currentTim
 
 #if defined(USE_ACC)
     const bool gpsRescueIsActive = FLIGHT_MODE(GPS_RESCUE_MODE);
-    const bool levelModeActive = FLIGHT_MODE(ANGLE_MODE) || FLIGHT_MODE(HORIZON_MODE) || gpsRescueIsActive;
-    const bool levelRaceModeActive = levelRaceMode && (FLIGHT_MODE(ANGLE_MODE) || FLIGHT_MODE(HORIZON_MODE)) && !gpsRescueIsActive;
+    levelMode_e levelMode;
+    if (FLIGHT_MODE(ANGLE_MODE) || FLIGHT_MODE(HORIZON_MODE) || gpsRescueIsActive) {
+        if (levelRaceMode && !gpsRescueIsActive) {
+            levelMode = LEVEL_MODE_R;
+        } else {
+            levelMode = LEVEL_MODE_RP;
+        }
+    } else {
+        levelMode = LEVEL_MODE_OFF;
+    }
 
     // Keep track of when we entered a self-level mode so that we can
     // add a guard time before crash recovery can activate.
     // Also reset the guard time whenever GPS Rescue is activated.
-    if (levelModeActive) {
+    if (levelMode) {
         if ((levelModeStartTimeUs == 0) || (gpsRescueIsActive && !gpsRescuePreviousState)) {
             levelModeStartTimeUs = currentTimeUs;
         }
@@ -1361,7 +1375,20 @@ void FAST_CODE pidController(const pidProfile_t *pidProfile, timeUs_t currentTim
         // Yaw control is GYRO based, direct sticks control is applied to rate PID
         // When Race Mode is active PITCH control is also GYRO based in level or horizon mode
 #if defined(USE_ACC)
-        if (levelModeActive && (axis != FD_YAW) && !(levelRaceModeActive && (axis == FD_PITCH))) {
+        switch (levelMode) {
+        case LEVEL_MODE_OFF:
+
+            break;
+        case LEVEL_MODE_R:
+            if (axis == FD_PITCH) {
+                break;
+            }
+
+            FALLTHROUGH;
+        case LEVEL_MODE_RP:
+            if (axis == FD_YAW) {
+                break;
+            }
             currentPidSetpoint = pidLevel(axis, pidProfile, angleTrim, currentPidSetpoint);
         }
 #endif
@@ -1523,7 +1550,7 @@ void FAST_CODE pidController(const pidProfile_t *pidProfile, timeUs_t currentTim
         if (yawSpinActive) {
             pidData[axis].I = 0;  // in yaw spin always disable I
             if (axis <= FD_PITCH)  {
-                // zero PIDs on pitch and roll leaving yaw P to correct spin 
+                // zero PIDs on pitch and roll leaving yaw P to correct spin
                 pidData[axis].P = 0;
                 pidData[axis].D = 0;
                 pidData[axis].F = 0;
@@ -1636,7 +1663,7 @@ void dynLpfDTermUpdate(float throttle)
 float dynDtermLpfCutoffFreq(float throttle, uint16_t dynLpfMin, uint16_t dynLpfMax, uint8_t expo) {
     const float expof = expo / 10.0f;
     static float curve;
-    curve = 2 * throttle * (1 - throttle) * expof + powerf(throttle, 2);
+    curve = throttle * (1 - throttle) * expof + throttle;
     return (dynLpfMax - dynLpfMin) * curve + dynLpfMin;
 }
 
