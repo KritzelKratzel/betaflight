@@ -20,36 +20,17 @@
 
 #pragma once
 
-#include "target/common_unified.h"
+#include "pg/gyrodev.h"
+#include "sensors/gyro.h"
 
-#define TARGET_BOARD_IDENTIFIER "S745"
-
-#define USBD_PRODUCT_STRING     "Betaflight STM32F745"
-
-#define USE_I2C_DEVICE_1
-#define USE_I2C_DEVICE_2
-#define USE_I2C_DEVICE_3
-#define USE_I2C_DEVICE_4
-
-#define USE_UART1
-#define USE_UART2
-#define USE_UART3
-#define USE_UART4
-#define USE_UART5
-#define USE_UART6
-#define USE_UART7
-#define USE_UART8
-
-#define SERIAL_PORT_COUNT       (UNIFIED_SERIAL_PORT_COUNT + 8)
-
-#define USE_SPI_DEVICE_1
-#define USE_SPI_DEVICE_2
-#define USE_SPI_DEVICE_3
-#define USE_SPI_DEVICE_4
-
-#define TARGET_IO_PORTA 0xffff
-#define TARGET_IO_PORTB 0xffff
-#define TARGET_IO_PORTC 0xffff
-#define TARGET_IO_PORTD 0xffff
-#define TARGET_IO_PORTE 0xffff
-#define TARGET_IO_PORTF 0xffff
+void gyroSetTargetLooptime(uint8_t pidDenom);
+void gyroPreInit(void);
+bool gyroInit(void);
+void gyroInitFilters(void);
+void gyroInitSensor(gyroSensor_t *gyroSensor, const gyroDeviceConfig_t *config);
+gyroDetectionFlags_t getGyroDetectionFlags(void);
+const busDevice_t *gyroSensorBus(void);
+struct mpuDetectionResult_s;
+const struct mpuDetectionResult_s *gyroMpuDetectionResult(void);
+int16_t gyroRateDps(int axis);
+uint8_t gyroReadRegister(uint8_t whichSensor, uint8_t reg);

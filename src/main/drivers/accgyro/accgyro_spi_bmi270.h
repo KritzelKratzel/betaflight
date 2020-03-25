@@ -20,34 +20,9 @@
 
 #pragma once
 
-#include "target/common_unified.h"
+#include "drivers/bus.h"
 
-#define TARGET_BOARD_IDENTIFIER "S405"
-
-#define USBD_PRODUCT_STRING     "Betaflight STM32F405"
-
-#define USE_I2C_DEVICE_1
-#define USE_I2C_DEVICE_2
-#define USE_I2C_DEVICE_3
-
-#define USE_UART1
-#define USE_UART2
-#define USE_UART3
-#define USE_UART4
-#define USE_UART5
-#define USE_UART6
-
-#define SERIAL_PORT_COUNT       (UNIFIED_SERIAL_PORT_COUNT + 6)
-
-#define USE_INVERTER
-
-#define USE_SPI_DEVICE_1
-#define USE_SPI_DEVICE_2
-#define USE_SPI_DEVICE_3
-
-#define TARGET_IO_PORTA 0xffff
-#define TARGET_IO_PORTB 0xffff
-#define TARGET_IO_PORTC 0xffff
-#define TARGET_IO_PORTD 0xffff
-#define TARGET_IO_PORTE 0xffff
-#define TARGET_IO_PORTF 0xffff
+uint8_t bmi270Detect(const busDevice_t *bus);
+bool bmi270SpiAccDetect(accDev_t *acc);
+bool bmi270SpiGyroDetect(gyroDev_t *gyro);
+uint8_t bmi270InterruptStatus(gyroDev_t *gyro);

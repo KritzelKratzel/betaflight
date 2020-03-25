@@ -98,6 +98,11 @@ pidProfile_t *currentPidProfile;
 
 #define DYNAMIC_FILTER_MAX_SUPPORTED_LOOP_TIME HZ_TO_INTERVAL_US(2000)
 
+#define BETAFLIGHT_MAX_SRATE  100
+#define KISS_MAX_SRATE        100
+#define QUICK_MAX_RATE        200
+#define ACTUAL_MAX_RATE       200
+
 PG_REGISTER_WITH_RESET_TEMPLATE(pilotConfig_t, pilotConfig, PG_PILOT_CONFIG, 1);
 
 PG_RESET_TEMPLATE(pilotConfig_t, pilotConfig,
@@ -555,6 +560,34 @@ static void validateAndFixConfig(void)
 #if defined(TARGET_VALIDATECONFIG)
     targetValidateConfiguration();
 #endif
+
+    for (unsigned i = 0; i < CONTROL_RATE_PROFILE_COUNT; i++) {
+        switch (controlRateProfilesMutable(i)->rates_type) {
+        case RATES_TYPE_BETAFLIGHT:
+        default:
+            for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
+                controlRateProfilesMutable(i)->rates[axis] = constrain(controlRateProfilesMutable(i)->rates[axis], 0, BETAFLIGHT_MAX_SRATE);
+            }
+
+            break;
+        case RATES_TYPE_KISS:
+            for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
+                controlRateProfilesMutable(i)->rates[axis] = constrain(controlRateProfilesMutable(i)->rates[axis], 0, KISS_MAX_SRATE);
+            }
+
+            break;
+        case RATES_TYPE_ACTUAL:
+            for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
+                controlRateProfilesMutable(i)->rates[axis] = constrain(controlRateProfilesMutable(i)->rates[axis], 0, ACTUAL_MAX_RATE);
+            }
+
+            break;
+        case RATES_TYPE_QUICK:
+            for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
+                controlRateProfilesMutable(i)->rates[axis] = constrain(controlRateProfilesMutable(i)->rates[axis], 0, QUICK_MAX_RATE);
+            }
+        }
+    }
 }
 
 void validateAndFixGyroConfig(void)
@@ -582,56 +615,51 @@ void validateAndFixGyroConfig(void)
     }
 #endif
 
-    float samplingTime;
-    switch (gyroMpuDetectionResult()->sensor) {
-    case ICM_20649_SPI:
-        samplingTime = 1.0f / 9000.0f;
-        break;
-    case BMI_160_SPI:
-        samplingTime = 0.0003125f;
-        break;
-    default:
-        samplingTime = 0.000125f;
-        break;
-    }
+    if (gyro.sampleRateHz > 0) {
+        float samplingTime = 1.0f / gyro.sampleRateHz;
 
-
-    // check for looptime restrictions based on motor protocol. Motor times have safety margin
-    float motorUpdateRestriction;
-    switch (motorConfig()->dev.motorPwmProtocol) {
-    case PWM_TYPE_STANDARD:
-            motorUpdateRestriction = 1.0f / BRUSHLESS_MOTORS_PWM_RATE;
-            break;
-    case PWM_TYPE_ONESHOT125:
-            motorUpdateRestriction = 0.0005f;
-            break;
-    case PWM_TYPE_ONESHOT42:
-            motorUpdateRestriction = 0.0001f;
-            break;
+        // check for looptime restrictions based on motor protocol. Motor times have safety margin
+        float motorUpdateRestriction;
+        switch (motorConfig()->dev.motorPwmProtocol) {
+        case PWM_TYPE_STANDARD:
+                motorUpdateRestriction = 1.0f / BRUSHLESS_MOTORS_PWM_RATE;
+                break;
+        case PWM_TYPE_ONESHOT125:
+                motorUpdateRestriction = 0.0005f;
+                break;
+        case PWM_TYPE_ONESHOT42:
+                motorUpdateRestriction = 0.0001f;
+                break;
 #ifdef USE_DSHOT
-    case PWM_TYPE_DSHOT150:
-            motorUpdateRestriction = 0.000250f;
-            break;
-    case PWM_TYPE_DSHOT300:
-            motorUpdateRestriction = 0.0001f;
-            break;
+        case PWM_TYPE_DSHOT150:
+                motorUpdateRestriction = 0.000250f;
+                break;
+        case PWM_TYPE_DSHOT300:
+                motorUpdateRestriction = 0.0001f;
+                break;
 #endif
-    default:
-        motorUpdateRestriction = 0.00003125f;
-        break;
-    }
-
-    if (motorConfig()->dev.useUnsyncedPwm) {
-        // Prevent overriding the max rate of motors
-        if ((motorConfig()->dev.motorPwmProtocol <= PWM_TYPE_BRUSHED) && (motorConfig()->dev.motorPwmProtocol != PWM_TYPE_STANDARD)) {
-            const uint32_t maxEscRate = lrintf(1.0f / motorUpdateRestriction);
-            motorConfigMutable()->dev.motorPwmRate = MIN(motorConfig()->dev.motorPwmRate, maxEscRate);
+        default:
+            motorUpdateRestriction = 0.00003125f;
+            break;
         }
-    } else {
-        const float pidLooptime = samplingTime * pidConfig()->pid_process_denom;
-        if (pidLooptime < motorUpdateRestriction) {
-            const uint8_t minPidProcessDenom = constrain(motorUpdateRestriction / samplingTime, 1, MAX_PID_PROCESS_DENOM);
-            pidConfigMutable()->pid_process_denom = MAX(pidConfigMutable()->pid_process_denom, minPidProcessDenom);
+
+        if (motorConfig()->dev.useUnsyncedPwm) {
+            // Prevent overriding the max rate of motors
+            if ((motorConfig()->dev.motorPwmProtocol <= PWM_TYPE_BRUSHED) && (motorConfig()->dev.motorPwmProtocol != PWM_TYPE_STANDARD)) {
+                const uint32_t maxEscRate = lrintf(1.0f / motorUpdateRestriction);
+                motorConfigMutable()->dev.motorPwmRate = MIN(motorConfig()->dev.motorPwmRate, maxEscRate);
+            }
+        } else {
+            const float pidLooptime = samplingTime * pidConfig()->pid_process_denom;
+            if (pidLooptime < motorUpdateRestriction) {
+                uint8_t minPidProcessDenom = motorUpdateRestriction / samplingTime;
+                if (motorUpdateRestriction / samplingTime > minPidProcessDenom) {
+                    // if any fractional part then round up
+                    minPidProcessDenom++;
+                }
+                minPidProcessDenom = constrain(minPidProcessDenom, 1, MAX_PID_PROCESS_DENOM);
+                pidConfigMutable()->pid_process_denom = MAX(pidConfigMutable()->pid_process_denom, minPidProcessDenom);
+            }
         }
     }
 
@@ -786,6 +814,7 @@ void changePidProfile(uint8_t pidProfileIndex)
 
         pidInit(currentPidProfile);
         initEscEndpoints();
+        mixerInitProfile();
     }
 
     beeperConfirmationBeeps(pidProfileIndex + 1);

@@ -53,8 +53,7 @@ extern "C" {
     #include "scheduler/scheduler.h"
     #include "sensors/battery.h"
 
-    void cliSet(char *cmdline);
-    void cliGet(char *cmdline);
+    void cliSet(const char *cmdName, char *cmdline);
     int cliGetSettingIndex(char *name, uint8_t length);
     void *cliGetValuePointer(const clivalue_t *value);
     
@@ -96,7 +95,7 @@ extern "C" {
 TEST(CLIUnittest, TestCliSetArray)
 {
     char *str = (char *)"array_unit_test    =   123,  -3  , 1";
-    cliSet(str);
+    cliSet("", str);
 
     const uint16_t index = cliGetSettingIndex(str, 15);
     EXPECT_LT(index, valueTableEntryCount);
@@ -119,7 +118,7 @@ TEST(CLIUnittest, TestCliSetArray)
 TEST(CLIUnittest, TestCliSetStringNoFlags)
 {
     char *str = (char *)"str_unit_test    =   SAMPLE"; 
-    cliSet(str);
+    cliSet("", str);
 
     const uint16_t index = cliGetSettingIndex(str, 13);
     EXPECT_LT(index, valueTableEntryCount);
@@ -147,7 +146,7 @@ TEST(CLIUnittest, TestCliSetStringWriteOnce)
 {
     char *str1 = (char *)"wos_unit_test    =   SAMPLE"; 
     char *str2 = (char *)"wos_unit_test    =   ELPMAS"; 
-    cliSet(str1);
+    cliSet("", str1);
 
     const uint16_t index = cliGetSettingIndex(str1, 13);
     EXPECT_LT(index, valueTableEntryCount);
@@ -169,7 +168,7 @@ TEST(CLIUnittest, TestCliSetStringWriteOnce)
     EXPECT_EQ('E', data[5]);
     EXPECT_EQ(0,   data[6]);
 
-    cliSet(str2);
+    cliSet("", str2);
 
     EXPECT_EQ('S', data[0]);
     EXPECT_EQ('A', data[1]);
@@ -179,7 +178,7 @@ TEST(CLIUnittest, TestCliSetStringWriteOnce)
     EXPECT_EQ('E', data[5]);
     EXPECT_EQ(0,   data[6]);
 
-    cliSet(str1);
+    cliSet("", str1);
 
     EXPECT_EQ('S', data[0]);
     EXPECT_EQ('A', data[1]);
@@ -299,7 +298,7 @@ uint8_t __config_start = 0x00;
 uint8_t __config_end = 0x10;
 uint16_t averageSystemLoadPercent = 0;
 
-timeDelta_t getTaskDeltaTime(cfTaskId_e){ return 0; }
+timeDelta_t getTaskDeltaTimeUs(taskId_e){ return 0; }
 uint16_t currentRxRefreshRate = 9000;
 armingDisableFlags_e getArmingDisableFlags(void) { return ARMING_DISABLED_NO_GYRO; }
 
@@ -307,9 +306,9 @@ const char *armingDisableFlagNames[]= {
 "DUMMYDISABLEFLAGNAME"
 };
 
-void getTaskInfo(cfTaskId_e, cfTaskInfo_t *) {}
+void getTaskInfo(taskId_e, taskInfo_t *) {}
 void getCheckFuncInfo(cfCheckFuncInfo_t *) {}
-void schedulerResetTaskMaxExecutionTime(cfTaskId_e) {}
+void schedulerResetTaskMaxExecutionTime(taskId_e) {}
 void schedulerResetCheckFunctionMaxExecutionTime(void) {}
 
 const char * const targetName = "UNITTEST";
@@ -359,4 +358,6 @@ bool isModeActivationConditionConfigured(const modeActivationCondition_t *, cons
 void delay(uint32_t) {}
 displayPort_t *osdGetDisplayPort(osdDisplayPortDevice_e *) { return NULL; }
 mcuTypeId_e getMcuTypeId(void) { return MCU_TYPE_UNKNOWN; }
+uint16_t getCurrentRxRefreshRate(void) { return 0; }
+uint16_t getAverageSystemLoadPercent(void) { return 0; }
 }

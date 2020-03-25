@@ -18,5 +18,16 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Needed to suppress the pedantic warning about an empty file
-#include <stddef.h>
+#pragma once
+
+#include "rx/rx.h"
+#include "rx/rx_spi.h"
+
+#define RC_CHANNEL_COUNT_REDPINE 16
+#define REDPINE_PACKET_SIZE 11
+#define REDPINE_PACKET_SIZE_W_ADDONS (REDPINE_PACKET_SIZE + 2)
+
+void redpineSetRcData(uint16_t *rcData, const uint8_t *payload);
+rx_spi_received_e redpineHandlePacket(uint8_t *const packet, uint8_t *const protocolState);
+rx_spi_received_e redpineSpiDataReceived(uint8_t *packet);
+bool redpineSpiInit(const rxSpiConfig_t *rxSpiConfig, rxRuntimeState_t *rxRuntimeState, rxSpiExtiConfig_t *extiConfig);

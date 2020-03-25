@@ -94,13 +94,12 @@ static FAST_RAM_ZERO_INIT bool zeroThrottleItermReset;
 
 PG_REGISTER_WITH_RESET_TEMPLATE(pidConfig_t, pidConfig, PG_PID_CONFIG, 2);
 
-#ifdef STM32F10X
-#define PID_PROCESS_DENOM_DEFAULT       1
-#elif defined(USE_GYRO_SPI_MPU6000) || defined(USE_GYRO_SPI_MPU6500)  || defined(USE_GYRO_SPI_ICM20689)
-#define PID_PROCESS_DENOM_DEFAULT       4
+#if defined(STM32F1)
+#define PID_PROCESS_DENOM_DEFAULT       8
 #else
-#define PID_PROCESS_DENOM_DEFAULT       2
+#define PID_PROCESS_DENOM_DEFAULT       4
 #endif
+
 #if defined(USE_D_MIN)
 #define D_MIN_GAIN_FACTOR 0.00005f
 #define D_MIN_SETPOINT_GAIN_FACTOR 0.00005f
@@ -1453,13 +1452,21 @@ void FAST_CODE pidController(const pidProfile_t *pidProfile, timeUs_t currentTim
         }
 
         // -----calculate I component
+        float Ki;
+        float axisDynCi;
 #ifdef USE_LAUNCH_CONTROL
-        // if launch control is active override the iterm gains
-        const float Ki = launchControlActive ? launchControlKi : pidCoefficient[axis].Ki;
-#else
-        const float Ki = pidCoefficient[axis].Ki;
+        // if launch control is active override the iterm gains and apply iterm windup protection to all axes
+        if (launchControlActive) {
+            Ki = launchControlKi;
+            axisDynCi = dynCi;
+        } else 
 #endif
-        pidData[axis].I = constrainf(previousIterm + (Ki * dynCi + agGain) * itermErrorRate, -itermLimit, itermLimit);
+        {
+            Ki = pidCoefficient[axis].Ki;
+            axisDynCi = (axis == FD_YAW) ? dynCi : dT; // only apply windup protection to yaw
+        }
+
+        pidData[axis].I = constrainf(previousIterm + (Ki * axisDynCi + agGain) * itermErrorRate, -itermLimit, itermLimit);
 
         // -----calculate pidSetpointDelta
         float pidSetpointDelta = 0;

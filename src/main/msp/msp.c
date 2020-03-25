@@ -133,6 +133,7 @@
 #include "sensors/compass.h"
 #include "sensors/esc_sensor.h"
 #include "sensors/gyro.h"
+#include "sensors/gyro_init.h"
 #include "sensors/rangefinder.h"
 
 #include "telemetry/telemetry.h"
@@ -602,6 +603,7 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
 #define TARGET_SUPPORTS_CUSTOM_DEFAULTS_BIT 4
 #define TARGET_HAS_CUSTOM_DEFAULTS_BIT 5
 #define TARGET_SUPPORTS_RX_BIND_BIT 6
+#define TARGET_ACC_NEEDS_CALIBRATION_BIT 7
 
         uint8_t targetCapabilities = 0;
 #ifdef USE_VCP
@@ -624,6 +626,10 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
 #endif
 #if defined(USE_RX_BIND)
         targetCapabilities |= (getRxBindSupported() << TARGET_SUPPORTS_RX_BIND_BIT);
+#endif
+
+#if defined(USE_ACC)
+        targetCapabilities |= (!accHasBeenCalibrated() << TARGET_ACC_NEEDS_CALIBRATION_BIT);
 #endif
 
         sbufWriteU8(dst, targetCapabilities);
@@ -980,7 +986,7 @@ static bool mspProcessOutCommand(int16_t cmdMSP, sbuf_t *dst)
             boxBitmask_t flightModeFlags;
             const int flagBits = packFlightModeFlags(&flightModeFlags);
 
-            sbufWriteU16(dst, getTaskDeltaTime(TASK_PID));
+            sbufWriteU16(dst, getTaskDeltaTimeUs(TASK_PID));
 #ifdef USE_I2C
             sbufWriteU16(dst, i2cGetErrorCounter());
 #else
@@ -989,7 +995,7 @@ static bool mspProcessOutCommand(int16_t cmdMSP, sbuf_t *dst)
             sbufWriteU16(dst, sensors(SENSOR_ACC) | sensors(SENSOR_BARO) << 1 | sensors(SENSOR_MAG) << 2 | sensors(SENSOR_GPS) << 3 | sensors(SENSOR_RANGEFINDER) << 4 | sensors(SENSOR_GYRO) << 5);
             sbufWriteData(dst, &flightModeFlags, 4);        // unconditional part of flags, first 32 bits
             sbufWriteU8(dst, getCurrentPidProfileIndex());
-            sbufWriteU16(dst, constrain(averageSystemLoadPercent, 0, 100));
+            sbufWriteU16(dst, constrain(getAverageSystemLoadPercent(), 0, LOAD_PERCENTAGE_ONE));
             if (cmdMSP == MSP_STATUS_EX) {
                 sbufWriteU8(dst, PID_PROFILE_COUNT);
                 sbufWriteU8(dst, getCurrentControlRateProfileIndex());
@@ -1224,6 +1230,9 @@ static bool mspProcessOutCommand(int16_t cmdMSP, sbuf_t *dst)
         sbufWriteU16(dst, currentControlRateProfile->rate_limit[FD_ROLL]);
         sbufWriteU16(dst, currentControlRateProfile->rate_limit[FD_PITCH]);
         sbufWriteU16(dst, currentControlRateProfile->rate_limit[FD_YAW]);
+
+        // added in 1.43
+        sbufWriteU8(dst, currentControlRateProfile->rates_type);
 
         break;
 
@@ -1793,6 +1802,10 @@ static bool mspProcessOutCommand(int16_t cmdMSP, sbuf_t *dst)
 #else
         sbufWriteU8(dst, 0);
 #endif
+        // Added in MSP API 1.43
+        sbufWriteU8(dst, currentPidProfile->motor_output_limit);
+        sbufWriteU8(dst, currentPidProfile->auto_profile_cell_count);
+        sbufWriteU8(dst, currentPidProfile->idle_min_rpm);
 
         break;
     case MSP_SENSOR_CONFIG:
@@ -2257,6 +2270,11 @@ static mspResult_e mspProcessInCommand(mspDescriptor_t srcDesc, int16_t cmdMSP, 
                 currentControlRateProfile->rate_limit[FD_YAW] = sbufReadU16(src);
             }
 
+            // version 1.43
+            if (sbufBytesRemaining(src) >= 1) {
+                currentControlRateProfile->rates_type = sbufReadU8(src);
+            }
+
             initRcProcessing();
         } else {
             return MSP_RESULT_ERROR;
@@ -2633,6 +2651,12 @@ static mspResult_e mspProcessInCommand(mspDescriptor_t srcDesc, int16_t cmdMSP, 
 #else
             sbufReadU8(src);
 #endif
+        }
+        if(sbufBytesRemaining(src) >= 3) {
+            // Added in MSP API 1.43
+            currentPidProfile->motor_output_limit = sbufReadU8(src);
+            currentPidProfile->auto_profile_cell_count = sbufReadU8(src);
+            currentPidProfile->idle_min_rpm = sbufReadU8(src);
         }
         pidInitConfig(currentPidProfile);
 
@@ -3028,7 +3052,11 @@ static mspResult_e mspProcessInCommand(mspDescriptor_t srcDesc, int16_t cmdMSP, 
         if (sbufBytesRemaining(src) >= 1) {
             // Added in MSP API 1.42
 #if defined(USE_RC_SMOOTHING_FILTER)
-            configRebootUpdateCheckU8(&rxConfigMutable()->rc_smoothing_auto_factor, sbufReadU8(src));
+            // Added extra validation/range constraint for rc_smoothing_auto_factor as a workaround for a bug in
+            // the 10.6 configurator where it was possible to submit an invalid out-of-range value. We might be
+            // able to remove the constraint at some point in the future once the affected versions are deprecated
+            // enough that the risk is low.
+            configRebootUpdateCheckU8(&rxConfigMutable()->rc_smoothing_auto_factor, constrain(sbufReadU8(src), RC_SMOOTHING_AUTO_FACTOR_MIN, RC_SMOOTHING_AUTO_FACTOR_MAX));
 #else
             sbufReadU8(src);
 #endif

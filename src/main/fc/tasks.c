@@ -160,29 +160,19 @@ static void taskUpdateAccelerometer(timeUs_t currentTimeUs)
 
 static void taskUpdateRxMain(timeUs_t currentTimeUs)
 {
-    static timeUs_t lastRxTimeUs;
-
     if (!processRx(currentTimeUs)) {
         return;
     }
 
-    timeDelta_t rxFrameDeltaUs;
-    if (!rxGetFrameDelta(&rxFrameDeltaUs)) {
-        rxFrameDeltaUs = cmpTimeUs(currentTimeUs, lastRxTimeUs); // calculate a delta here if not supplied by the protocol
-    }
-    lastRxTimeUs = currentTimeUs;
-    currentRxRefreshRate = constrain(rxFrameDeltaUs, 1000, 30000);
-    isRXDataNew = true;
+    // updateRcCommands sets rcCommand, which is needed by updateAltHoldState and updateSonarAltHoldState
+    updateRcCommands();
+    updateArmingStatus();
 
 #ifdef USE_USB_CDC_HID
     if (!ARMING_FLAG(ARMED)) {
         sendRcDataToHid();
     }
 #endif
-
-    // updateRcCommands sets rcCommand, which is needed by updateAltHoldState and updateSonarAltHoldState
-    updateRcCommands();
-    updateArmingStatus();
 }
 
 #ifdef USE_BARO
@@ -370,20 +360,20 @@ void tasksInit(void)
     .subTaskName = subTaskNameParam, \
     .checkFunc = checkFuncParam, \
     .taskFunc = taskFuncParam, \
-    .desiredPeriod = desiredPeriodParam, \
+    .desiredPeriodUs = desiredPeriodParam, \
     .staticPriority = staticPriorityParam \
 }
 #else
 #define DEFINE_TASK(taskNameParam, subTaskNameParam, checkFuncParam, taskFuncParam, desiredPeriodParam, staticPriorityParam) {  \
     .checkFunc = checkFuncParam, \
     .taskFunc = taskFuncParam, \
-    .desiredPeriod = desiredPeriodParam, \
+    .desiredPeriodUs = desiredPeriodParam, \
     .staticPriority = staticPriorityParam \
 }
 #endif
 
 
-cfTask_t cfTasks[TASK_COUNT] = {
+task_t tasks[TASK_COUNT] = {
     [TASK_SYSTEM] = DEFINE_TASK("SYSTEM", "LOAD", NULL, taskSystemLoad, TASK_PERIOD_HZ(10), TASK_PRIORITY_MEDIUM_HIGH),
     [TASK_MAIN] = DEFINE_TASK("SYSTEM", "UPDATE", NULL, taskMain, TASK_PERIOD_HZ(1000), TASK_PRIORITY_MEDIUM_HIGH),
     [TASK_SERIAL] = DEFINE_TASK("SERIAL", NULL, NULL, taskHandleSerial, TASK_PERIOD_HZ(100), TASK_PRIORITY_LOW), // 100 Hz should be enough to flush up to 115 bytes @ 115200 baud
@@ -481,3 +471,8 @@ cfTask_t cfTasks[TASK_COUNT] = {
     [TASK_RANGEFINDER] = DEFINE_TASK("RANGEFINDER", NULL, NULL, rangefinderUpdate, TASK_PERIOD_HZ(10), TASK_PRIORITY_IDLE),
 #endif
 };
+
+task_t *getTask(unsigned taskId)
+{
+    return &tasks[taskId];
+}
