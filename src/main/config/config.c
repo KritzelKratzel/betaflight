@@ -261,6 +261,12 @@ static void validateAndFixConfig(void)
                 pidProfilesMutable(i)->d_min[axis] = 0;
             }
         }
+
+#if defined(USE_BATTERY_VOLTAGE_SAG_COMPENSATION)
+        if (batteryConfig()->voltageMeterSource != VOLTAGE_METER_ADC) {
+            pidProfilesMutable(i)->vbat_sag_compensation = 0;
+        }
+#endif
     }
 
     if (motorConfig()->dev.motorPwmProtocol == PWM_TYPE_BRUSHED) {
@@ -651,6 +657,9 @@ void validateAndFixGyroConfig(void)
             }
         } else {
             const float pidLooptime = samplingTime * pidConfig()->pid_process_denom;
+            if (motorConfig()->dev.useDshotTelemetry) {
+                motorUpdateRestriction *= 2;
+            }
             if (pidLooptime < motorUpdateRestriction) {
                 uint8_t minPidProcessDenom = motorUpdateRestriction / samplingTime;
                 if (motorUpdateRestriction / samplingTime > minPidProcessDenom) {
