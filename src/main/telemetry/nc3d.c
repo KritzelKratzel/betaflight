@@ -230,7 +230,7 @@ static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint16_t 
   switch (item){
   case OSD3D_MAIN_BATT_VOLTAGE:
     {
-      tfp_sprintf(buff, "%2d.%1d%c", getBatteryVoltage() / 10, \
+      tfp_sprintf(buff, "%2d.%1d%c", getBatteryVoltage() / 100, \
 		  getBatteryVoltage() % 10, 'V');
       if (getBatteryState() != BATTERY_OK) blinky(buff);
 
