@@ -60,6 +60,8 @@
 #include "io/serial.h"
 #include "io/vtx.h"
 
+#include "msp/msp_box.h"
+
 #include "osd/osd.h"
 
 #include "pg/adc.h"
@@ -181,6 +183,8 @@ static void activateConfig(void)
 #if defined(USE_LED_STRIP_STATUS_MODE)
     reevaluateLedConfig();
 #endif
+
+    initActiveBoxIds();
 }
 
 static void adjustFilterLimit(uint16_t *parm, uint16_t resetValue)
@@ -509,30 +513,27 @@ static void validateAndFixConfig(void)
 #endif
 #endif
 
+    bool configuredMotorProtocolDshot = false;
+    checkMotorProtocolEnabled(&motorConfig()->dev, &configuredMotorProtocolDshot);
 #if defined(USE_DSHOT)
-    bool usingDshotProtocol;
-    switch (motorConfig()->dev.motorPwmProtocol) {
-    case PWM_TYPE_PROSHOT1000:
-    case PWM_TYPE_DSHOT600:
-    case PWM_TYPE_DSHOT300:
-    case PWM_TYPE_DSHOT150:
-        usingDshotProtocol = true;
-        break;
-    default:
-        usingDshotProtocol = false;
-        break;
-    }
-
     // If using DSHOT protocol disable unsynched PWM as it's meaningless
-    if (usingDshotProtocol) {
+    if (configuredMotorProtocolDshot) {
         motorConfigMutable()->dev.useUnsyncedPwm = false;
     }
 
 #if defined(USE_DSHOT_TELEMETRY)
-    if ((!usingDshotProtocol || (motorConfig()->dev.useDshotBitbang == DSHOT_BITBANG_OFF && motorConfig()->dev.useBurstDshot == DSHOT_DMAR_ON) || systemConfig()->schedulerOptimizeRate == SCHEDULER_OPTIMIZE_RATE_OFF)
+    if ((!configuredMotorProtocolDshot || (motorConfig()->dev.useDshotBitbang == DSHOT_BITBANG_OFF && motorConfig()->dev.useBurstDshot == DSHOT_DMAR_ON) || systemConfig()->schedulerOptimizeRate == SCHEDULER_OPTIMIZE_RATE_OFF)
         && motorConfig()->dev.useDshotTelemetry) {
         motorConfigMutable()->dev.useDshotTelemetry = false;
     }
+
+#if defined(USE_DYN_IDLE)
+    if (!isRpmFilterEnabled()) {
+        for (unsigned i = 0; i < PID_PROFILE_COUNT; i++) {
+            pidProfilesMutable(i)->idle_min_rpm = 0;
+        }
+    }
+#endif // USE_DYN_IDLE
 #endif // USE_DSHOT_TELEMETRY
 #endif // USE_DSHOT
 
@@ -650,8 +651,10 @@ void validateAndFixGyroConfig(void)
         }
 
         if (motorConfig()->dev.useUnsyncedPwm) {
+            bool configuredMotorProtocolDshot = false;
+            checkMotorProtocolEnabled(&motorConfig()->dev, &configuredMotorProtocolDshot);
             // Prevent overriding the max rate of motors
-            if ((motorConfig()->dev.motorPwmProtocol <= PWM_TYPE_BRUSHED) && (motorConfig()->dev.motorPwmProtocol != PWM_TYPE_STANDARD)) {
+            if (!configuredMotorProtocolDshot && motorConfig()->dev.motorPwmProtocol != PWM_TYPE_STANDARD) {
                 const uint32_t maxEscRate = lrintf(1.0f / motorUpdateRestriction);
                 motorConfigMutable()->dev.motorPwmRate = MIN(motorConfig()->dev.motorPwmRate, maxEscRate);
             }

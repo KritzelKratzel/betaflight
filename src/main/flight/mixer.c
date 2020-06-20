@@ -346,7 +346,7 @@ void initEscEndpoints(void)
         motorOutputLimit = currentPidProfile->motor_output_limit / 100.0f;
     }
 
-    motorInitEndpoints(motorOutputLimit, &motorOutputLow, &motorOutputHigh, &disarmMotorOutput, &deadbandMotor3dHigh, &deadbandMotor3dLow);
+    motorInitEndpoints(motorConfig(), motorOutputLimit, &motorOutputLow, &motorOutputHigh, &disarmMotorOutput, &deadbandMotor3dHigh, &deadbandMotor3dLow);
 
     rcCommandThrottleRange = PWM_RANGE_MAX - PWM_RANGE_MIN;
 }
@@ -620,9 +620,10 @@ static void calculateThrottleAndCurrentMotorEndpoints(timeUs_t currentTimeUs)
         }
     } else {
         throttle = rcCommand[THROTTLE] - PWM_RANGE_MIN + throttleAngleCorrection;
+        float appliedMotorOutputLow = motorOutputLow;
 #ifdef USE_DYN_IDLE
         if (idleMinMotorRps > 0.0f) {
-            motorOutputLow = DSHOT_MIN_THROTTLE;
+            appliedMotorOutputLow = DSHOT_MIN_THROTTLE;
             const float maxIncrease = isAirmodeActivated() ? idleMaxIncrease : 0.04f;
             const float minRps = rpmMinMotorFrequency();
             const float targetRpsChangeRate = (idleMinMotorRps - minRps) * currentPidProfile->idle_adjustment_speed;
@@ -636,7 +637,9 @@ static void calculateThrottleAndCurrentMotorEndpoints(timeUs_t currentTimeUs)
             DEBUG_SET(DEBUG_DYN_IDLE, 1, targetRpsChangeRate);
             DEBUG_SET(DEBUG_DYN_IDLE, 2, error);
             DEBUG_SET(DEBUG_DYN_IDLE, 3, minRps);
-
+        } else {
+            motorRangeMinIncrease = 0;
+            oldMinRps = 0;
         }
 #endif
 
@@ -657,7 +660,7 @@ static void calculateThrottleAndCurrentMotorEndpoints(timeUs_t currentTimeUs)
 #endif
 
         currentThrottleInputRange = rcCommandThrottleRange;
-        motorRangeMin = motorOutputLow + motorRangeMinIncrease * (motorOutputHigh - motorOutputLow);
+        motorRangeMin = appliedMotorOutputLow + motorRangeMinIncrease * (motorOutputHigh - appliedMotorOutputLow);
         motorOutputMin = motorRangeMin;
         motorOutputRange = motorRangeMax - motorRangeMin;
         motorOutputMixSign = 1;

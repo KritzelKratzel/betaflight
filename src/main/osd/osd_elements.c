@@ -839,7 +839,7 @@ static void osdElementFlymode(osdElementParms_t *element)
     } else if (FLIGHT_MODE(HEADFREE_MODE)) {
         strcpy(element->buff, "HEAD");
     } else if (FLIGHT_MODE(ANGLE_MODE)) {
-        strcpy(element->buff, "STAB");
+        strcpy(element->buff, "ANGL");
     } else if (FLIGHT_MODE(HORIZON_MODE)) {
         strcpy(element->buff, "HOR ");
     } else if (IS_RC_MODE_ACTIVE(BOXACROTRAINER)) {
@@ -1037,7 +1037,7 @@ static void osdElementMainBatteryVoltage(osdElementParms_t *element)
         batteryVoltage = (batteryVoltage + 5) / 10;
         tfp_sprintf(element->buff + 1, "%d.%d%c", batteryVoltage / 10, batteryVoltage % 10, SYM_VOLT);
     } else {
-        tfp_sprintf(element->buff + 1, "%d.%d%c", batteryVoltage / 100, batteryVoltage % 100, SYM_VOLT);
+        tfp_sprintf(element->buff + 1, "%d.%02d%c", batteryVoltage / 100, batteryVoltage % 100, SYM_VOLT);
     }
 }
 

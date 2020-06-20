@@ -221,6 +221,22 @@ extern char __custom_defaults_end;
 
 static bool processingCustomDefaults = false;
 static char cliBufferTemp[CLI_IN_BUFFER_SIZE];
+
+#define CUSTOM_DEFAULTS_START_PREFIX ("# " FC_FIRMWARE_NAME)
+#define CUSTOM_DEFAULTS_MANUFACTURER_ID_PREFIX "# config: manufacturer_id: "
+#define CUSTOM_DEFAULTS_BOARD_NAME_PREFIX ", board_name: "
+#define CUSTOM_DEFAULTS_CHANGESET_ID_PREFIX ", version: "
+#define CUSTOM_DEFAULTS_DATE_PREFIX ", date: "
+
+#define MAX_CHANGESET_ID_LENGTH 8
+#define MAX_DATE_LENGTH 20
+
+static bool customDefaultsHeaderParsed = false;
+static bool customDefaultsFound = false;
+static char customDefaultsManufacturerId[MAX_MANUFACTURER_ID_LENGTH + 1] = { 0 };
+static char customDefaultsBoardName[MAX_BOARD_NAME_LENGTH + 1] = { 0 };
+static char customDefaultsChangesetId[MAX_CHANGESET_ID_LENGTH + 1] = { 0 };
+static char customDefaultsDate[MAX_DATE_LENGTH + 1] = { 0 };
 #endif
 
 #if defined(USE_CUSTOM_DEFAULTS_ADDRESS)
@@ -1511,10 +1527,10 @@ static void cliSerialPassthrough(const char *cmdName, char *cmdline)
             // leave the mode unchanged. serialPassthrough() handles one-way ports.
             // Set the baud rate if specified
             if (ports[i].baud) {
-                cliPrintf("Port%d is already open, setting baud = %d.\n\r", portIndex, ports[i].baud);
+                cliPrintf("Port%d is already open, setting baud = %d.\r\n", portIndex, ports[i].baud);
                 serialSetBaudRate(*port, ports[i].baud);
             } else {
-                cliPrintf("Port%d is already open, baud = %d.\n\r", portIndex, (*port)->baudRate);
+                cliPrintf("Port%d is already open, baud = %d.\r\n", portIndex, (*port)->baudRate);
             }
 
             if (ports[i].mode && (*port)->mode != ports[i].mode) {
@@ -3790,7 +3806,7 @@ static void executeEscInfoCommand(const char *cmdName, uint8_t escIndex)
 
     startEscDataRead(escInfoBuffer, ESC_INFO_BLHELI32_EXPECTED_FRAME_SIZE);
 
-    dshotCommandWrite(escIndex, getMotorCount(), DSHOT_CMD_ESC_INFO, true);
+    dshotCommandWrite(escIndex, getMotorCount(), DSHOT_CMD_ESC_INFO, DSHOT_CMD_TYPE_BLOCKING);
 
     delay(10);
 
@@ -3798,12 +3814,9 @@ static void executeEscInfoCommand(const char *cmdName, uint8_t escIndex)
 }
 #endif // USE_ESC_SENSOR && USE_ESC_SENSOR_INFO
 
-
-// XXX Review dshotprog command under refactored motor handling
-
 static void cliDshotProg(const char *cmdName, char *cmdline)
 {
-    if (isEmpty(cmdline) || motorConfig()->dev.motorPwmProtocol < PWM_TYPE_DSHOT150) {
+    if (isEmpty(cmdline) || !isMotorProtocolDshot()) {
         cliShowParseError(cmdName);
 
         return;
@@ -3841,7 +3854,7 @@ static void cliDshotProg(const char *cmdName, char *cmdline)
                     }
 
                     if (command != DSHOT_CMD_ESC_INFO) {
-                        dshotCommandWrite(escIndex, getMotorCount(), command, true);
+                        dshotCommandWrite(escIndex, getMotorCount(), command, DSHOT_CMD_TYPE_BLOCKING);
                     } else {
 #if defined(USE_ESC_SENSOR) && defined(USE_ESC_SENSOR_INFO)
                         if (featureIsEnabled(FEATURE_ESC_SENSOR)) {
@@ -4237,14 +4250,62 @@ bool resetConfigToCustomDefaults(void)
     return prepareSave();
 }
 
-static bool isCustomDefaults(char *ptr)
+static bool customDefaultsHasNext(const char *customDefaultsPtr)
 {
-    return strncmp(ptr, "# " FC_FIRMWARE_NAME, 12) == 0;
+    return *customDefaultsPtr && *customDefaultsPtr != 0xFF && customDefaultsPtr < customDefaultsEnd;
+}
+
+static const char *parseCustomDefaultsHeaderElement(char *dest, const char *customDefaultsPtr, const char *prefix, const char terminator, const unsigned maxLength)
+{
+    char *endPtr = NULL;
+    unsigned len = strlen(prefix);
+    if (customDefaultsPtr && customDefaultsHasNext(customDefaultsPtr) && strncmp(customDefaultsPtr, prefix, len) == 0) {
+        customDefaultsPtr += len;
+        endPtr = strchr(customDefaultsPtr, terminator);
+    }
+
+    if (endPtr && customDefaultsHasNext(endPtr)) {
+        len = endPtr - customDefaultsPtr;
+        memcpy(dest, customDefaultsPtr, MIN(len, maxLength));
+
+        customDefaultsPtr += len;
+
+        return customDefaultsPtr;
+    }
+
+    return NULL;
+}
+
+static void parseCustomDefaultsHeader(void)
+{
+    const char *customDefaultsPtr = customDefaultsStart;
+    if (strncmp(customDefaultsPtr, CUSTOM_DEFAULTS_START_PREFIX, strlen(CUSTOM_DEFAULTS_START_PREFIX)) == 0) {
+        customDefaultsFound = true;
+
+        customDefaultsPtr = strchr(customDefaultsPtr, '\n');
+        if (customDefaultsPtr && customDefaultsHasNext(customDefaultsPtr)) {
+            customDefaultsPtr++;
+        }
+
+        customDefaultsPtr = parseCustomDefaultsHeaderElement(customDefaultsManufacturerId, customDefaultsPtr, CUSTOM_DEFAULTS_MANUFACTURER_ID_PREFIX, CUSTOM_DEFAULTS_BOARD_NAME_PREFIX[0], MAX_MANUFACTURER_ID_LENGTH);
+
+        customDefaultsPtr = parseCustomDefaultsHeaderElement(customDefaultsBoardName, customDefaultsPtr, CUSTOM_DEFAULTS_BOARD_NAME_PREFIX, CUSTOM_DEFAULTS_CHANGESET_ID_PREFIX[0], MAX_BOARD_NAME_LENGTH);
+
+        customDefaultsPtr = parseCustomDefaultsHeaderElement(customDefaultsChangesetId, customDefaultsPtr, CUSTOM_DEFAULTS_CHANGESET_ID_PREFIX, CUSTOM_DEFAULTS_DATE_PREFIX[0], MAX_CHANGESET_ID_LENGTH);
+
+        customDefaultsPtr = parseCustomDefaultsHeaderElement(customDefaultsDate, customDefaultsPtr, CUSTOM_DEFAULTS_DATE_PREFIX, '\n', MAX_DATE_LENGTH);
+    }
+
+    customDefaultsHeaderParsed = true;
 }
 
 bool hasCustomDefaults(void)
 {
-    return isCustomDefaults(customDefaultsStart);
+    if (!customDefaultsHeaderParsed) {
+        parseCustomDefaultsHeader();
+    }
+
+    return customDefaultsFound;
 }
 #endif
 
@@ -4267,9 +4328,9 @@ static void cliDefaults(const char *cmdName, char *cmdline)
     } else if (strncasecmp(cmdline, "bare", 4) == 0) {
         useCustomDefaults = false;
     } else if (strncasecmp(cmdline, "show", 4) == 0) {
-        char *customDefaultsPtr = customDefaultsStart;
-        if (isCustomDefaults(customDefaultsPtr)) {
-            while (*customDefaultsPtr && *customDefaultsPtr != 0xFF && customDefaultsPtr < customDefaultsEnd) {
+        if (hasCustomDefaults()) {
+            char *customDefaultsPtr = customDefaultsStart;
+            while (customDefaultsHasNext(customDefaultsPtr)) {
                 if (*customDefaultsPtr != '\n') {
                     cliPrintf("%c", *customDefaultsPtr++);
                 } else {
@@ -4644,6 +4705,19 @@ static void cliStatus(const char *cmdName, char *cmdline)
     cliPrintLinef("Config size: %d, Max available config: %d", getEEPROMConfigSize(), getEEPROMStorageSize());
 
     // Sensors
+    cliPrint("Gyros detected:");
+    bool found = false;
+    for (unsigned pos = 0; pos < 7; pos++) {
+        if (gyroConfig()->gyrosDetected & BIT(pos)) {
+            if (found) {
+                cliPrint(",");
+            } else {
+                found = true;
+            }
+            cliPrintf(" gyro %d", pos + 1);
+        }
+    }
+    cliPrintLinefeed();
 
 #if defined(USE_SENSOR_NAMES)
     const uint32_t detectedSensorsMask = sensorsMask();
@@ -4670,10 +4744,10 @@ static void cliStatus(const char *cmdName, char *cmdline)
 #endif /* USE_SENSOR_NAMES */
 
 #if defined(USE_OSD)
-    osdDisplayPortDevice_e displayPortDevice;
-    osdGetDisplayPort(&displayPortDevice);
+    osdDisplayPortDevice_e displayPortDeviceType;
+    osdGetDisplayPort(&displayPortDeviceType);
 
-    cliPrintLinef("OSD: %s", lookupTableOsdDisplayPortDevice[displayPortDevice]);
+    cliPrintLinef("OSD: %s", lookupTableOsdDisplayPortDevice[displayPortDeviceType]);
 #endif
 
     // Uptime and wall clock
@@ -4776,10 +4850,12 @@ static void cliTasks(const char *cmdName, char *cmdline)
 }
 #endif
 
-static void cliVersion(const char *cmdName, char *cmdline)
+static void printVersion(const char *cmdName, bool printBoardInfo)
 {
+#if !(defined(USE_CUSTOM_DEFAULTS) && defined(USE_UNIFIED_TARGET))
     UNUSED(cmdName);
-    UNUSED(cmdline);
+    UNUSED(printBoardInfo);
+#endif
 
     cliPrintf("# %s / %s (%s) %s %s / %s (%s) MSP API: %s",
         FC_FIRMWARE_NAME,
@@ -4798,23 +4874,39 @@ static void cliVersion(const char *cmdName, char *cmdline)
     cliPrintLinefeed();
 #endif
 
-#ifdef USE_UNIFIED_TARGET
-    cliPrint("# ");
-#ifdef USE_BOARD_INFO
-    if (strlen(getManufacturerId())) {
-        cliPrintf("manufacturer_id: %s   ", getManufacturerId());
+#if defined(USE_CUSTOM_DEFAULTS)
+    if (hasCustomDefaults()) {
+        if (strlen(customDefaultsManufacturerId) || strlen(customDefaultsBoardName) || strlen(customDefaultsChangesetId) || strlen(customDefaultsDate)) {
+            cliPrintLinef("%s%s%s%s%s%s%s%s",
+                CUSTOM_DEFAULTS_MANUFACTURER_ID_PREFIX, customDefaultsManufacturerId,
+                CUSTOM_DEFAULTS_BOARD_NAME_PREFIX, customDefaultsBoardName,
+                CUSTOM_DEFAULTS_CHANGESET_ID_PREFIX, customDefaultsChangesetId,
+                CUSTOM_DEFAULTS_DATE_PREFIX, customDefaultsDate
+            );
+        } else {
+            cliPrintHashLine("config: YES");
+        }
+    } else {
+#if defined(USE_UNIFIED_TARGET)
+        cliPrintError(cmdName, "NO CONFIG FOUND");
+#else
+        cliPrintHashLine("NO CUSTOM DEFAULTS FOUND");
+#endif // USE_UNIFIED_TARGET
     }
-    if (strlen(getBoardName())) {
-        cliPrintf("board_name: %s   ", getBoardName());
-    }
-#endif // USE_BOARD_INFO
-
-#ifdef USE_CUSTOM_DEFAULTS
-    cliPrintf("custom defaults: %s", hasCustomDefaults() ? "YES" : "NO");
 #endif // USE_CUSTOM_DEFAULTS
 
-    cliPrintLinefeed();
-#endif // USE_UNIFIED_TARGET
+#if defined(USE_UNIFIED_TARGET) && defined(USE_BOARD_INFO)
+    if (printBoardInfo && strlen(getManufacturerId()) && strlen(getBoardName())) {
+        cliPrintLinef("# board: manufacturer_id: %s, board_name: %s", getManufacturerId(), getBoardName());
+    }
+#endif
+}
+
+static void cliVersion(const char *cmdName, char *cmdline)
+{
+    UNUSED(cmdline);
+
+    printVersion(cmdName, true);
 }
 
 #ifdef USE_RC_SMOOTHING_FILTER
@@ -5112,24 +5204,27 @@ static void resourceCheck(uint8_t resourceIndex, uint8_t index, ioTag_t newTag)
     }
 }
 
-static bool strToPin(char *pch, ioTag_t *tag)
+static bool strToPin(char *ptr, ioTag_t *tag)
 {
-    if (strcasecmp(pch, "NONE") == 0) {
+    if (strcasecmp(ptr, "NONE") == 0) {
         *tag = IO_TAG_NONE;
+
         return true;
     } else {
-        unsigned pin = 0;
-        unsigned port = (*pch >= 'a') ? *pch - 'a' : *pch - 'A';
-
+        const unsigned port = (*ptr >= 'a') ? *ptr - 'a' : *ptr - 'A';
         if (port < 8) {
-            pch++;
-            pin = atoi(pch);
-            if (pin < 16) {
+            ptr++;
+
+            char *end;
+            const long pin = strtol(ptr, &end, 10);
+            if (end != ptr && pin >= 0 && pin < 16) {
                 *tag = DEFIO_TAG_MAKE(port, pin);
+
                 return true;
             }
         }
     }
+
     return false;
 }
 
@@ -6021,7 +6116,7 @@ static void printConfig(const char *cmdName, char *cmdline, bool doDiff)
 #endif
     if ((dumpMask & DUMP_MASTER) || (dumpMask & DUMP_ALL)) {
         cliPrintHashLine("version");
-        cliVersion(cmdName, "");
+        printVersion(cmdName, false);
 
         if (!(dumpMask & BARE)) {
 #ifdef USE_CLI_BATCH
@@ -6380,7 +6475,7 @@ const clicmd_t cmdTable[] = {
     CLI_COMMAND_DEF("serial", "configure serial ports", NULL, cliSerial),
 #if defined(USE_SERIAL_PASSTHROUGH)
 #if defined(USE_PINIO)
-    CLI_COMMAND_DEF("serialpassthrough", "passthrough serial data data from port 1 to VCP / port 2", "<id1> [<baud1>] [<mode>1] [none|<dtr pinio>|reset] [<id2>] [<baud2>] [<mode2>]", cliSerialPassthrough),
+    CLI_COMMAND_DEF("serialpassthrough", "passthrough serial data data from port 1 to VCP / port 2", "<id1> [<baud1>] [<mode1>] [none|<dtr pinio>|reset] [<id2>] [<baud2>] [<mode2>]", cliSerialPassthrough),
 #else
     CLI_COMMAND_DEF("serialpassthrough", "passthrough serial data from port 1 to VCP / port 2", "<id1> [<baud1>] [<mode1>] [none|reset] [<id2>] [<baud2>] [<mode2>]", cliSerialPassthrough),
 #endif
@@ -6545,7 +6640,7 @@ static void processCharacterInteractive(const char c)
         }
         if (!bufferIndex || pstart != pend) {
             /* Print list of ambiguous matches */
-            cliPrint("\r\033[K");
+            cliPrint("\r\n\033[K");
             for (cmd = pstart; cmd <= pend; cmd++) {
                 cliPrint(cmd->name);
                 cliWrite('\t');
@@ -6592,8 +6687,7 @@ void cliProcess(void)
 #if defined(USE_CUSTOM_DEFAULTS)
 static bool cliProcessCustomDefaults(bool quiet)
 {
-    char *customDefaultsPtr = customDefaultsStart;
-    if (processingCustomDefaults || !isCustomDefaults(customDefaultsPtr)) {
+    if (processingCustomDefaults || !hasCustomDefaults()) {
         return false;
     }
 
@@ -6615,7 +6709,8 @@ static bool cliProcessCustomDefaults(bool quiet)
     bufferIndex = 0;
     processingCustomDefaults = true;
 
-    while (*customDefaultsPtr && *customDefaultsPtr != 0xFF && customDefaultsPtr < customDefaultsEnd) {
+    char *customDefaultsPtr = customDefaultsStart;
+    while (customDefaultsHasNext(customDefaultsPtr)) {
         processCharacter(*customDefaultsPtr++);
     }
 

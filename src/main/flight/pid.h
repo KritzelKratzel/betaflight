@@ -46,11 +46,13 @@
 
 // Full iterm suppression in setpoint mode at high-passed setpoint rate > 40deg/sec
 #define ITERM_RELAX_SETPOINT_THRESHOLD 40.0f
-#define ITERM_RELAX_CUTOFF_DEFAULT 20
+#define ITERM_RELAX_CUTOFF_DEFAULT 15
 
 // Anti gravity I constant
 #define AG_KI 21.586988f;
 
+#define ITERM_ACCELERATOR_GAIN_OFF 1000
+#define ITERM_ACCELERATOR_GAIN_MAX 30000
 typedef enum {
     PID_ROLL,
     PID_PITCH,

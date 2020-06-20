@@ -96,8 +96,12 @@ PG_REGISTER_WITH_RESET_TEMPLATE(pidConfig_t, pidConfig, PG_PID_CONFIG, 2);
 
 #if defined(STM32F1)
 #define PID_PROCESS_DENOM_DEFAULT       8
-#else
+#elif defined(STM32F3)
 #define PID_PROCESS_DENOM_DEFAULT       4
+#elif defined(STM32F411xE)
+#define PID_PROCESS_DENOM_DEFAULT       2
+#else
+#define PID_PROCESS_DENOM_DEFAULT       1
 #endif
 
 #if defined(USE_D_MIN)
@@ -143,7 +147,7 @@ void resetPidProfile(pidProfile_t *pidProfile)
         .pid = {
             [PID_ROLL] =  { 42, 85, 35, 90 },
             [PID_PITCH] = { 46, 90, 38, 95 },
-            [PID_YAW] =   { 30, 90, 0, 90 },
+            [PID_YAW] =   { 45, 90, 0, 90 },
             [PID_LEVEL] = { 50, 50, 75, 0 },
             [PID_MAG] =   { 40, 0, 0, 0 },
         },
@@ -205,8 +209,8 @@ void resetPidProfile(pidProfile_t *pidProfile)
         .use_integrated_yaw = false,
         .integrated_yaw_relax = 200,
         .thrustLinearization = 0,
-        .d_min = { 20, 22, 0 },      // roll, pitch, yaw
-        .d_min_gain = 27,
+        .d_min = { 23, 25, 0 },      // roll, pitch, yaw
+        .d_min_gain = 37,
         .d_min_advance = 20,
         .motor_output_limit = 100,
         .auto_profile_cell_count = AUTO_PROFILE_CELL_COUNT_STAY,
@@ -222,7 +226,7 @@ void resetPidProfile(pidProfile_t *pidProfile)
         .ff_max_rate_limit = 100,
         .ff_smooth_factor = 37,
         .ff_boost = 15,
-        .dyn_lpf_curve_expo = 0,
+        .dyn_lpf_curve_expo = 5,
         .level_race_mode = false,
         .vbat_sag_compensation = 0,
     );
