@@ -10,7 +10,7 @@
 # https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/syncing-a-fork
 
 git fetch upstream
-git checkout master
-git merge upstream/master
-git push origin master
+git checkout 4.2-maintenance
+git merge upstream/4.2-maintenance
+git push origin 4.2-maintenance
 
