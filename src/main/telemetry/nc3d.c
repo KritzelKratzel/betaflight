@@ -154,7 +154,7 @@
 #include "drivers/sensor.h"
 #include "drivers/accgyro/accgyro.h"
 
-#include "config/config.h"
+#include "fc/config.h"
 #include "fc/rc_modes.h"
 #include "fc/rc_controls.h"
 #include "fc/runtime_config.h"
@@ -200,7 +200,7 @@
 #define NC3D_CYCLETIME   100
 #define OSD3D_BLINK_CYCLE      500/NC3D_CYCLETIME
 
-static serialPortConfig_t *portConfig;
+static const serialPortConfig_t *portConfig;
 static portSharing_e nc3dPortSharing;
 static serialPort_t *nc3dPort;
 static bool nc3dEnabled;
@@ -379,7 +379,7 @@ void initNc3dTelemetry(void)
 
 void checkNc3dTelemetryState(void)
 {
-  if (portConfig && telemetryCheckRxPortShared(portConfig, rxRuntimeState.serialrxProvider)) {
+  if (portConfig && telemetryCheckRxPortShared(portConfig, rxRuntimeConfig.serialrxProvider)) {
     if (!nc3dEnabled && telemetrySharedPort != NULL) {
       nc3dPort = telemetrySharedPort;
       nc3dEnabled = true;
