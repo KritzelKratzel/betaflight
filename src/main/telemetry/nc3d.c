@@ -200,7 +200,7 @@
 #define NC3D_CYCLETIME   100
 #define OSD3D_BLINK_CYCLE      500/NC3D_CYCLETIME
 
-static serialPortConfig_t *portConfig;
+static const serialPortConfig_t *portConfig;
 static portSharing_e nc3dPortSharing;
 static serialPort_t *nc3dPort;
 static bool nc3dEnabled;
