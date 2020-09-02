@@ -20,9 +20,8 @@
 
 #pragma once
 
-#include "drivers/display.h"
+#include "rx/rx.h"
+#include "pg/rx.h"
 
-#include "pg/displayport_profiles.h"
+uint16_t rxMspOverrideReadRawRc(const rxRuntimeState_t *rxRuntimeState, const rxConfig_t *rxConfig, uint8_t chan);
 
-struct vcdProfile_s;
-bool max7456DisplayPortInit(const struct vcdProfile_s *vcdProfile, displayPort_t **displayPort);

@@ -20,9 +20,8 @@
 
 #pragma once
 
-#include "drivers/display.h"
-
-#include "pg/displayport_profiles.h"
-
-struct vcdProfile_s;
-bool max7456DisplayPortInit(const struct vcdProfile_s *vcdProfile, displayPort_t **displayPort);
+typedef enum {
+    UNIT_IMPERIAL = 0,
+    UNIT_METRIC,
+    UNIT_BRITISH
+} unit_e;

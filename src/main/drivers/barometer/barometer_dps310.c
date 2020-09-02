@@ -44,7 +44,7 @@
 
 #if defined(USE_BARO) && defined(USE_BARO_DPS310)
 
-#define DPS310_I2C_ADDR             0x77
+#define DPS310_I2C_ADDR             0x76
 
 #define DPS310_REG_PSR_B2           0x00
 #define DPS310_REG_PSR_B1           0x01
@@ -372,6 +372,8 @@ bool baroDPS310Detect(baroDev_t *baro)
         busDeviceDeInit(busdev);
         return false;
     }
+
+    busDeviceRegister(busdev);
 
     const uint32_t baroDelay = 1000000 / 32 / 2;      // twice the sample rate to capture all new data
 

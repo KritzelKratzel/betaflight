@@ -18,11 +18,27 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include "platform.h"
 
-#include "drivers/display.h"
+#if defined(USE_RX_MSP_OVERRIDE)
 
-#include "pg/displayport_profiles.h"
+#include "rx/msp_override.h"
+#include "rx/msp.h"
+#include "fc/rc_modes.h"
+#include "common/maths.h"
 
-struct vcdProfile_s;
-bool max7456DisplayPortInit(const struct vcdProfile_s *vcdProfile, displayPort_t **displayPort);
+
+uint16_t rxMspOverrideReadRawRc(const rxRuntimeState_t *rxRuntimeState, const rxConfig_t *rxConfig, uint8_t chan)
+{
+    uint16_t rxSample = (rxRuntimeState->rcReadRawFn)(rxRuntimeState, chan);
+
+    uint16_t overrideSample = rxMspReadRawRC(rxRuntimeState, chan);
+    bool override = (1 << chan) & rxConfig->msp_override_channels_mask;
+
+    if (IS_RC_MODE_ACTIVE(BOXMSPOVERRIDE) && override) {
+        return overrideSample;
+    } else {
+        return rxSample;
+    }
+}
+#endif

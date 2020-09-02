@@ -50,6 +50,7 @@
 
 #include "drivers/accgyro/accgyro.h"
 #include "drivers/bus_i2c.h"
+#include "drivers/bus_spi.h"
 #include "drivers/camera_control.h"
 #include "drivers/compass/compass.h"
 #include "drivers/display.h"
@@ -686,6 +687,18 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
 
         sbufWriteU32(dst, configurationProblems);
 
+        // Added in MSP API 1.44
+#if defined(USE_SPI)
+        sbufWriteU8(dst, spiGetRegisteredDeviceCount());
+#else
+        sbufWriteU8(dst, 0);
+#endif
+#if defined(USE_I2C)
+        sbufWriteU8(dst, i2cGetRegisteredDeviceCount());
+#else
+        sbufWriteU8(dst, 0);
+#endif
+
         break;
     }
 
@@ -888,17 +901,18 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
 
         osdDisplayPortDevice_e deviceType;
         displayPort_t *osdDisplayPort = osdGetDisplayPort(&deviceType);
+        bool displayIsReady = osdDisplayPort && displayCheckReady(osdDisplayPort, true);
         switch (deviceType) {
         case OSD_DISPLAYPORT_DEVICE_MAX7456:
             osdFlags |= OSD_FLAGS_OSD_HARDWARE_MAX_7456;
-            if (osdDisplayPort && displayIsReady(osdDisplayPort)) {
+            if (displayIsReady) {
                 osdFlags |= OSD_FLAGS_OSD_DEVICE_DETECTED;
             }
 
             break;
         case OSD_DISPLAYPORT_DEVICE_FRSKYOSD:
             osdFlags |= OSD_FLAGS_OSD_HARDWARE_FRSKYOSD;
-            if (osdDisplayPort && displayIsReady(osdDisplayPort)) {
+            if (displayIsReady) {
                 osdFlags |= OSD_FLAGS_OSD_DEVICE_DETECTED;
             }
 
@@ -1176,6 +1190,16 @@ static bool mspProcessOutCommand(int16_t cmdMSP, sbuf_t *dst)
         }
         break;
 
+    case MSP2_MOTOR_OUTPUT_REORDERING:
+        {
+            sbufWriteU8(dst, MAX_SUPPORTED_MOTORS);
+
+            for (unsigned i = 0; i < MAX_SUPPORTED_MOTORS; i++) {
+                sbufWriteU8(dst, motorConfig()->dev.motorOutputReordering[i]);
+            }
+        }
+        break;
+
     case MSP_RC:
         for (int i = 0; i < rxRuntimeState.channelCount; i++) {
             sbufWriteU16(dst, rcData[i]);
@@ -1357,6 +1381,8 @@ static bool mspProcessOutCommand(int16_t cmdMSP, sbuf_t *dst)
         sbufWriteU16(dst, (uint16_t)constrain(gpsSol.llh.altCm / 100, 0, UINT16_MAX)); // alt changed from 1m to 0.01m per lsb since MSP API 1.39 by RTH. To maintain backwards compatibility compensate to 1m per lsb in MSP again.
         sbufWriteU16(dst, gpsSol.groundSpeed);
         sbufWriteU16(dst, gpsSol.groundCourse);
+        // Added in API version 1.44    
+        sbufWriteU16(dst, gpsSol.hdop);
         break;
 
     case MSP_COMP_GPS:
@@ -2949,6 +2975,22 @@ static mspResult_e mspProcessInCommand(mspDescriptor_t srcDesc, int16_t cmdMSP, 
         }
         break;
 #endif
+
+    case MSP2_SET_MOTOR_OUTPUT_REORDERING:
+        {
+            const uint8_t arraySize = sbufReadU8(src);
+
+            for (unsigned i = 0; i < MAX_SUPPORTED_MOTORS; i++) {
+                uint8_t value = i;
+
+                if (i < arraySize) {
+                    value = sbufReadU8(src);
+                }
+
+                motorConfigMutable()->dev.motorOutputReordering[i] = value;
+            }
+        }
+        break;
 
 #ifdef USE_CAMERA_CONTROL
     case MSP_CAMERA_CONTROL:
