@@ -34,6 +34,7 @@ typedef enum {
     OSD3D_HEADLINE,
     OSD3D_MAH_DRAWN,
     OSD3D_RSSI_VALUE,
+    OSD3D_TMP
 } osd_items_e;
 
 #define OSD3D_ELEMENT_BUFFER_LENGTH 32

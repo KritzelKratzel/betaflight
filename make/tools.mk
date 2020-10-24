@@ -12,9 +12,9 @@
 # Check that environmental variables are sane
 #
 ##############################
-
+# gcc-arm-none-eabi-9-2020-q2-update
 # Set up ARM (STM32) SDK
-ARM_SDK_DIR ?= $(TOOLS_DIR)/gcc-arm-none-eabi-9-2019-q4-major
+ARM_SDK_DIR ?= $(TOOLS_DIR)/gcc-arm-none-eabi-9-2020-q2-update
 # Checked below, Should match the output of $(shell arm-none-eabi-gcc -dumpversion)
 GCC_REQUIRED_VERSION ?= 9.2.1
 

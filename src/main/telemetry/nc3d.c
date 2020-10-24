@@ -182,6 +182,8 @@
 #include "flight/failsafe.h"
 #include "flight/position.h"
 
+#include "scheduler/scheduler.h"
+
 #include "telemetry/telemetry.h"
 #include "telemetry/nc3d.h"
 
@@ -191,19 +193,21 @@
 #define OSD3D_ARMED_CLOCK_POSITION       13
 #define OSD3D_MAH_DRAWN_POSITION         25
 #define OSD3D_RSSI_VALUE_POSITION        32
-#define OSD3D_HEADLINE_POSITION          44
+#define OSD3D_HEADLINE_POSITION          42
 #define OSD3D_FLYMODE_POSITION           60
+static osd_items_e state = OSD3D_MAIN_BATT_VOLTAGE;
 
 // further arrangements
+#define NC3D_TASK_PERIOD_US (14000)
 #define SYM_RSSI 0x90
 #define TELEMETRY_NC3D_INITIAL_PORT_MODE MODE_TX
-#define NC3D_CYCLETIME   100
-#define OSD3D_BLINK_CYCLE      500/NC3D_CYCLETIME
+//#define NC3D_CYCLETIME_MS   100 // 100 ms between successive messages
+#define OSD3D_BLINK_CYCLE (500*1000/NC3D_TASK_PERIOD_US)
 
-static const serialPortConfig_t *portConfig;
-static portSharing_e nc3dPortSharing;
 static serialPort_t *nc3dPort;
-static bool nc3dEnabled;
+static const serialPortConfig_t *portConfig;
+static bool nc3dEnabled = false;
+static portSharing_e nc3dPortSharing;
 static bool osdBlinkMask = true;
 
 
@@ -282,13 +286,12 @@ static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint16_t 
     {
       if (!ARMING_FLAG(ARMED))
 	{
-	  blinky(strcpy(buff,"DISARMED"));
+	  blinky(strcpy(buff," DISARMED "));
 	}
       else
 	{
-	  strcpy(buff,"        ");
-	}
-      
+	  strcpy(buff,"          ");
+	}      
       break;
     }
   case OSD3D_MAH_DRAWN:
@@ -353,17 +356,70 @@ static void process_nc3d(void)
       call_cnt = 0;
       osdBlinkMask = !osdBlinkMask;
     }
-  else
+  else {
     call_cnt++;
+  }
 
   // draw OSD elements
-  osdDrawSingleElement(nc3dPort,\
-		       OSD3D_MAIN_BATT_VOLTAGE, OSD3D_MAIN_BATT_VOLTAGE_POSITION);
-  osdDrawSingleElement(nc3dPort, OSD3D_ARMED_CLOCK, OSD3D_ARMED_CLOCK_POSITION);
-  osdDrawSingleElement(nc3dPort, OSD3D_FLYMODE, OSD3D_FLYMODE_POSITION);
-  osdDrawSingleElement(nc3dPort, OSD3D_HEADLINE, OSD3D_HEADLINE_POSITION);
-  osdDrawSingleElement(nc3dPort, OSD3D_MAH_DRAWN, OSD3D_MAH_DRAWN_POSITION);
-  osdDrawSingleElement(nc3dPort, OSD3D_RSSI_VALUE, OSD3D_RSSI_VALUE_POSITION);
+  /* osdDrawSingleElement(nc3dPort,\ */
+  /* 		       OSD3D_MAIN_BATT_VOLTAGE, OSD3D_MAIN_BATT_VOLTAGE_POSITION); // OK */
+  /* osdDrawSingleElement(nc3dPort, OSD3D_ARMED_CLOCK, OSD3D_ARMED_CLOCK_POSITION);   // OK */
+  /* osdDrawSingleElement(nc3dPort, OSD3D_FLYMODE, OSD3D_FLYMODE_POSITION); */
+  /* //osdDrawSingleElement(nc3dPort, OSD3D_HEADLINE, OSD3D_HEADLINE_POSITION); */
+  /* osdDrawSingleElement(nc3dPort, OSD3D_MAH_DRAWN, OSD3D_MAH_DRAWN_POSITION);       // OK */
+  /* osdDrawSingleElement(nc3dPort, OSD3D_RSSI_VALUE, OSD3D_RSSI_VALUE_POSITION);     // OK */
+
+  // osdDrawSingleElement(nc3dPort, OSD3D_FLYMODE, OSD3D_FLYMODE_POSITION);
+
+    switch (state) {
+    case OSD3D_MAIN_BATT_VOLTAGE:
+      {
+	osdDrawSingleElement(nc3dPort, state, OSD3D_MAIN_BATT_VOLTAGE_POSITION);
+	state = OSD3D_ARMED_CLOCK;
+	break;
+      }
+    case OSD3D_ARMED_CLOCK:
+      {
+	osdDrawSingleElement(nc3dPort, state, OSD3D_ARMED_CLOCK_POSITION);
+	state = OSD3D_FLYMODE;
+	break;
+      }
+    case OSD3D_FLYMODE:
+      {
+	osdDrawSingleElement(nc3dPort, state, OSD3D_FLYMODE_POSITION);
+	state = OSD3D_HEADLINE;
+	break;
+      }
+    case OSD3D_HEADLINE:
+      {
+	osdDrawSingleElement(nc3dPort, state, OSD3D_HEADLINE_POSITION); // ???
+	state = OSD3D_MAH_DRAWN;
+	break;
+      }
+    case OSD3D_MAH_DRAWN:
+      {
+	osdDrawSingleElement(nc3dPort, state, OSD3D_MAH_DRAWN_POSITION);
+	state = OSD3D_RSSI_VALUE;
+	break;
+      }
+    case OSD3D_RSSI_VALUE:
+      {
+	osdDrawSingleElement(nc3dPort, state, OSD3D_RSSI_VALUE_POSITION);
+	state = OSD3D_TMP;
+	break;
+      }
+    case OSD3D_TMP:
+      {
+	state = OSD3D_MAIN_BATT_VOLTAGE;
+	break;
+      }
+    default:
+      {
+	state = OSD3D_MAIN_BATT_VOLTAGE;
+	break;
+      }
+    }
+
 }
 
 /*****************************************************************************/
@@ -371,43 +427,34 @@ static void process_nc3d(void)
 /* are called in src/main/telemetry/telemetry.c				     */
 /*****************************************************************************/
 
-void initNc3dTelemetry(void)
-{
-  portConfig = findSerialPortConfig(FUNCTION_TELEMETRY_NC3D);
-  nc3dPortSharing = determinePortSharing(portConfig, FUNCTION_TELEMETRY_NC3D);
-}
-
-void checkNc3dTelemetryState(void)
-{
-  if (portConfig && telemetryCheckRxPortShared(portConfig, rxRuntimeState.serialrxProvider)) {
-    if (!nc3dEnabled && telemetrySharedPort != NULL) {
-      nc3dPort = telemetrySharedPort;
-      nc3dEnabled = true;
-    }
-  } else {
-    bool newTelemetryEnabledValue = telemetryDetermineEnabledState(nc3dPortSharing);
-    if (newTelemetryEnabledValue == nc3dEnabled)
-      return;
-    if (newTelemetryEnabledValue)
-      configureNc3dTelemetryPort();
-    else
-      freeNc3dTelemetryPort();
-  }
-}
-
 void handleNc3dTelemetry(void)
 {
-  static uint32_t nc3d_lastCycleTime;
-  uint32_t now;
+  /* static uint32_t nc3d_lastCycleTime; */
+  /* uint32_t now; */
   if (!nc3dEnabled)
     return;
   if (!nc3dPort)
     return;
-  now = millis();
-  if ((now - nc3d_lastCycleTime) >= NC3D_CYCLETIME) {
+  /*now = millis();
+  if ((now - nc3d_lastCycleTime) >= NC3D_CYCLETIME_MS) {
     process_nc3d();
     nc3d_lastCycleTime = now;
-  }
+    }*/
+  process_nc3d();
+}
+
+void freeNc3dTelemetryPort(void)
+{
+  closeSerialPort(nc3dPort);
+  nc3dPort = NULL;
+  nc3dEnabled = false;
+}
+
+void initNc3dTelemetry(void)
+{
+  portConfig = findSerialPortConfig(FUNCTION_TELEMETRY_NC3D);
+  nc3dPortSharing = determinePortSharing(portConfig, FUNCTION_TELEMETRY_NC3D);
+  rescheduleTask(TASK_TELEMETRY, NC3D_TASK_PERIOD_US); // 5ms
 }
 
 void configureNc3dTelemetryPort(void)
@@ -430,11 +477,39 @@ void configureNc3dTelemetryPort(void)
   nc3dEnabled = true;
 }
 
-void freeNc3dTelemetryPort(void)
+void checkNc3dTelemetryState(void)
 {
-  closeSerialPort(nc3dPort);
-  nc3dPort = NULL;
-  nc3dEnabled = false;
-}
+  bool newTelemetryEnabledValue = telemetryDetermineEnabledState(nc3dPortSharing);
 
+  if (newTelemetryEnabledValue == nc3dEnabled) {
+    return;
+  }
+  
+  if (newTelemetryEnabledValue) {
+    // rescheduleTask(TASK_TELEMETRY, (timeDelta_t) 100000); // max 8ms for one message
+    configureNc3dTelemetryPort();
+  }
+  else {
+    freeNc3dTelemetryPort();
+  }
+
+  
+  /*  if (portConfig && telemetryCheckRxPortShared(portConfig, rxRuntimeState.serialrxProvider)) {
+    if (!nc3dEnabled && telemetrySharedPort != NULL) {
+      nc3dPort = telemetrySharedPort;
+      nc3dEnabled = true;
+    }
+  } else {
+    bool newTelemetryEnabledValue = telemetryDetermineEnabledState(nc3dPortSharing);
+    if (newTelemetryEnabledValue == nc3dEnabled)
+      return;
+    if (newTelemetryEnabledValue) {
+      rescheduleTask(TASK_TELEMETRY, (timeDelta_t) 6000); // max 6ms for one message
+      configureNc3dTelemetryPort();
+    }
+    else {
+      freeNc3dTelemetryPort();
+    }
+    }*/
+}
 #endif
