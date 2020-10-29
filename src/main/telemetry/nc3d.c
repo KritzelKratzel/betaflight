@@ -249,13 +249,16 @@ static osd_items_e state = REQ_DEV_ID;
 #define SYM_RSSI 0x90
 #define TELEMETRY_NC3D_INITIAL_PORT_MODE MODE_RXTX
 #define OSD3D_BLINK_CYCLE (500*1000/NC3D_TASK_PERIOD_US) // 0.5s blink cycle
+#define CMD_INVALID (0x00)
 #define CMD_GET_DEVICE_ID (0x01)
+#define CMD_SET_CONVERGENCE (0x02)
 
 static serialPort_t *nc3dPort;
 static const serialPortConfig_t *portConfig;
 static bool nc3dEnabled = false;
 static portSharing_e nc3dPortSharing;
 static bool osdBlinkMask = true;
+static uint8_t devConvergenceValue=50;
 
 static void blinky(char *str){
   // make str blinky ... needed for OSD alarm elements.
@@ -410,7 +413,7 @@ static uint8_t read_device_id(void){
 }
 
 static void request_device_id(void){
-  // send command to device
+  // send command to device, no arguments
 
   // header, configuration telegram
   serialPrint(nc3dPort, "$AC");
@@ -429,7 +432,32 @@ static void request_device_id(void){
   // crc
   serialWrite(nc3dPort, crc);
 
-  // Camera device will respond immediately on UART
+  // Camera device will respond with one byte immediately on UART
+}
+
+static void setupDeviceConvergence(void){
+  // send command to device, one argument
+
+  // header, configuration telegram
+  serialPrint(nc3dPort, "$AC");
+
+  // msglen
+  const uint16_t msglen=2; // payload only two bytes
+  serialWrite(nc3dPort, (uint8_t) msglen); // lower byte
+  serialWrite(nc3dPort, (msglen >> 8)); // higher byte
+
+  // serial payload starts here
+  // command
+  serialWrite(nc3dPort, CMD_SET_CONVERGENCE);
+  uint8_t crc = CMD_SET_CONVERGENCE;
+  serialWrite(nc3dPort, devConvergenceValue);
+  crc ^= devConvergenceValue;
+  // serial payload ends here
+  
+  // crc
+  serialWrite(nc3dPort, crc);
+
+  // no response from camera to this command
 }
 
 static void process_nc3d(void)
@@ -456,10 +484,10 @@ static void process_nc3d(void)
       }
       // Launch command to get camera device ID
       request_device_id();
-      state = SETUP_DEV;
+      state = SETUP_DEV_POSITIONS;
       break;
     }
-  case SETUP_DEV:
+  case SETUP_DEV_POSITIONS:
     {
       uint8_t cameraDeviceId = read_device_id();
       // Apply device specific settings
@@ -473,6 +501,8 @@ static void process_nc3d(void)
 	  OSD3D_RSSI_VALUE_POSITION        = 45;
 	  OSD3D_HEADLINE_POSITION          = 422;
 	  OSD3D_FLYMODE_POSITION           = 86;
+	  devConvergenceValue = 55; // OSD convergence value 0 to 100
+	  state = SETUP_DEV_CONVERGENCE;
 	  break;
 	}
       default:
@@ -484,9 +514,16 @@ static void process_nc3d(void)
 	  OSD3D_RSSI_VALUE_POSITION        = 32;
 	  OSD3D_HEADLINE_POSITION          = 43;
 	  OSD3D_FLYMODE_POSITION           = 60;
+	  // does not support convergence setting
+	  state = OSD3D_MAIN_BATT_VOLTAGE;
 	  break;
 	}	
-      }	
+      }
+      break;
+    }
+  case SETUP_DEV_CONVERGENCE:
+    {
+      setupDeviceConvergence();
       state = OSD3D_MAIN_BATT_VOLTAGE;
       break;
     }

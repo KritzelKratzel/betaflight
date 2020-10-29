@@ -29,7 +29,8 @@ void configureNc3dTelemetryPort(void);
 
 typedef enum {
   REQ_DEV_ID,
-  SETUP_DEV,
+  SETUP_DEV_POSITIONS,
+  SETUP_DEV_CONVERGENCE,
   OSD3D_MAIN_BATT_VOLTAGE,
   OSD3D_ARMED_CLOCK,
   OSD3D_FLYMODE,
