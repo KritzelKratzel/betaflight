@@ -65,6 +65,11 @@
  *      * Only MsgType = D implemented,
  *      * Only 64 screen positions available for data display,
  *      * Fixed Baud rate of 250_000 Bd on serial interface.
+ *
+ *  2. PSCam3D HD
+ *      * Both MsgTypes D and C implemented
+ *      * 45 x 20 character display area (900 in total)
+ *      * Fixed Baud rate of 115200 Bd on serial interface
  *      
  *  End of List.
  *  ------------------------------------------------------------------------------
@@ -86,10 +91,10 @@
  * +---------------------------------------------+
  * |###      Upper OSD Section - 32 Chars     ###|
  * |###   +--------------------------------+  ###|
- * |###   |M100%       DISARMED        ACRO|  ###|
+ * |###   |M100%      _DISARMED_       ACRO|  ###|
  * |###   +--------------------------------+  ###|
- * |###    |           |               |      ###|
- * |###    32          44              60     ###|
+ * |###    |          |                |      ###|
+ * |###    32         43               60     ###|
  * |###                                       ###|
  * |###                                       ###|
  * |###                                       ###|
@@ -105,6 +110,40 @@
  * |###   +--------------------------------+  ###|
  * |###      Lower OSD Section - 32 Chars     ###
  * +---------------------------------------------+
+ *
+ *
+ * ===============================================================================
+ *  PSCam3D HD OSD Layout and Element Positions
+ * ===============================================================================
+ *
+ * +---------------------------------------------------+
+ * |###                                             ###|
+ * |###M100%                                    ACRO###|
+ * |###                                             ###|
+ * |###                                             ###|
+ * |###                                             ###|
+ * |###                                             ###|
+ * |###                                             ###|
+ * |###                                             ###|
+ * |###                                             ###|
+ * |###                 _DISARMED_                  ###|
+ * |###                                             ###|
+ * |###                                             ###|
+ * |###                                             ###|
+ * |###                                             ###|
+ * |###                                             ###|
+ * |###                                             ###|
+ * |###                                             ###|
+ * |###                                             ###|
+ * |###12.3V               01:30             _234mAh###|
+ * |###                                             ###|
+ * +---------------------------------------------------+
+ * RSSI starts at character number 45
+ * Flymode starts at character number 86
+ * Headine starts at character number 422
+ * Voltage starts at character number 810
+ * Armed clock starts at character number 830
+ * mAh starts at character number 848
  *
  *  ------------------------------------------------------------------------------
  * Personal remarks:
@@ -182,38 +221,51 @@
 #include "flight/failsafe.h"
 #include "flight/position.h"
 
+#include "scheduler/scheduler.h"
+
 #include "telemetry/telemetry.h"
 #include "telemetry/nc3d.h"
 
 
 // OSD elements currently defined with static positions
-#define OSD3D_MAIN_BATT_VOLTAGE_POSITION  0
-#define OSD3D_ARMED_CLOCK_POSITION       13
-#define OSD3D_MAH_DRAWN_POSITION         25
-#define OSD3D_RSSI_VALUE_POSITION        32
-#define OSD3D_HEADLINE_POSITION          44
-#define OSD3D_FLYMODE_POSITION           60
+/* #define OSD3D_MAIN_BATT_VOLTAGE_POSITION  0 */
+/* #define OSD3D_ARMED_CLOCK_POSITION       13 */
+/* #define OSD3D_MAH_DRAWN_POSITION         25 */
+/* #define OSD3D_RSSI_VALUE_POSITION        32 */
+/* #define OSD3D_HEADLINE_POSITION          43 */
+/* #define OSD3D_FLYMODE_POSITION           60 */
+static uint16_t OSD3D_MAIN_BATT_VOLTAGE_POSITION = 0;
+static uint16_t OSD3D_ARMED_CLOCK_POSITION       = 0;
+static uint16_t OSD3D_MAH_DRAWN_POSITION         = 0;
+static uint16_t OSD3D_RSSI_VALUE_POSITION        = 0;
+static uint16_t OSD3D_HEADLINE_POSITION          = 0;
+static uint16_t OSD3D_FLYMODE_POSITION           = 0;
+
+// static osd_items_e state = OSD3D_MAIN_BATT_VOLTAGE;
+static osd_items_e state = REQ_DEV_ID;
 
 // further arrangements
+#define NC3D_TASK_PERIOD_US (10000) // TASK_TELEMETRY period in us
 #define SYM_RSSI 0x90
-#define TELEMETRY_NC3D_INITIAL_PORT_MODE MODE_TX
-#define NC3D_CYCLETIME   100
-#define OSD3D_BLINK_CYCLE      500/NC3D_CYCLETIME
+#define TELEMETRY_NC3D_INITIAL_PORT_MODE MODE_RXTX
+#define OSD3D_BLINK_CYCLE (500*1000/NC3D_TASK_PERIOD_US) // 0.5s blink cycle
+#define CMD_INVALID (0x00)
+#define CMD_GET_DEVICE_ID (0x01)
+#define CMD_SET_CONVERGENCE (0x02)
 
-static const serialPortConfig_t *portConfig;
-static portSharing_e nc3dPortSharing;
 static serialPort_t *nc3dPort;
-static bool nc3dEnabled;
+static const serialPortConfig_t *portConfig;
+static bool nc3dEnabled = false;
+static portSharing_e nc3dPortSharing;
 static bool osdBlinkMask = true;
+static uint8_t devConvergenceValue=50;
 
-
-static char* blinky(char *str){
+static void blinky(char *str){
   // make str blinky ... needed for OSD alarm elements.
   if (!osdBlinkMask){
     // delete with spaces (ASCII 0x20)
     memset(str,' ',strlen(str));
-  }
-  return str;  
+  }  
 }
 
 static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint16_t position)
@@ -282,13 +334,12 @@ static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint16_t 
     {
       if (!ARMING_FLAG(ARMED))
 	{
-	  blinky(strcpy(buff,"DISARMED"));
+	  blinky(strcpy(buff," DISARMED "));
 	}
       else
 	{
-	  strcpy(buff,"        ");
-	}
-      
+	  strcpy(buff,"          ");
+	}      
       break;
     }
   case OSD3D_MAH_DRAWN:
@@ -343,6 +394,72 @@ static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint16_t 
   }
 }
 
+static uint8_t read_device_id(void){
+  // Check UART Rx buffer to see if there was a response and if yes which one
+
+  return (serialRxBytesWaiting(nc3dPort) == 1) ? serialRead(nc3dPort) : 0x00;
+
+  /* uint8_t data; */
+  
+  /* if (serialRxBytesWaiting(nc3dPort) == 1) { */
+  /*   // exactly one byte shall be in buffer if there is a PS3DCam attached to the FC */
+  /*   data = serialRead(nc3dPort); */
+  /* } */
+  /* else { */
+  /*   // no response, so there is most likely a NanoCam3D Mk.1 attached to the FC */
+  /*   data = 0x00; */
+  /* } */
+  /* return data; */
+}
+
+static void request_device_id(void){
+  // send command to device, no arguments
+
+  // header, configuration telegram
+  serialPrint(nc3dPort, "$AC");
+
+  // msglen
+  const uint16_t msglen=1; // payload only one byte long
+  serialWrite(nc3dPort, (uint8_t) msglen); // lower byte
+  serialWrite(nc3dPort, (msglen >> 8)); // higher byte
+
+  // serial payload starts here
+  // command
+  uint8_t crc = CMD_GET_DEVICE_ID;
+  serialWrite(nc3dPort, CMD_GET_DEVICE_ID);
+  // serial payload ends here
+  
+  // crc
+  serialWrite(nc3dPort, crc);
+
+  // Camera device will respond with one byte immediately on UART
+}
+
+static void setupDeviceConvergence(void){
+  // send command to device, one argument
+
+  // header, configuration telegram
+  serialPrint(nc3dPort, "$AC");
+
+  // msglen
+  const uint16_t msglen=2; // payload only two bytes
+  serialWrite(nc3dPort, (uint8_t) msglen); // lower byte
+  serialWrite(nc3dPort, (msglen >> 8)); // higher byte
+
+  // serial payload starts here
+  // command
+  serialWrite(nc3dPort, CMD_SET_CONVERGENCE);
+  uint8_t crc = CMD_SET_CONVERGENCE;
+  serialWrite(nc3dPort, devConvergenceValue);
+  crc ^= devConvergenceValue;
+  // serial payload ends here
+  
+  // crc
+  serialWrite(nc3dPort, crc);
+
+  // no response from camera to this command
+}
+
 static void process_nc3d(void)
 {
   // Create an OSD blink mask simply by counting the number of calls of
@@ -353,17 +470,110 @@ static void process_nc3d(void)
       call_cnt = 0;
       osdBlinkMask = !osdBlinkMask;
     }
-  else
+  else {
     call_cnt++;
+  }
 
   // draw OSD elements
-  osdDrawSingleElement(nc3dPort,\
-		       OSD3D_MAIN_BATT_VOLTAGE, OSD3D_MAIN_BATT_VOLTAGE_POSITION);
-  osdDrawSingleElement(nc3dPort, OSD3D_ARMED_CLOCK, OSD3D_ARMED_CLOCK_POSITION);
-  osdDrawSingleElement(nc3dPort, OSD3D_FLYMODE, OSD3D_FLYMODE_POSITION);
-  osdDrawSingleElement(nc3dPort, OSD3D_HEADLINE, OSD3D_HEADLINE_POSITION);
-  osdDrawSingleElement(nc3dPort, OSD3D_MAH_DRAWN, OSD3D_MAH_DRAWN_POSITION);
-  osdDrawSingleElement(nc3dPort, OSD3D_RSSI_VALUE, OSD3D_RSSI_VALUE_POSITION);
+  switch (state) {
+  case REQ_DEV_ID:
+    {
+      // flush Rx buffer
+      while (serialRxBytesWaiting(nc3dPort) > 0) {
+        serialRead(nc3dPort);
+      }
+      // Launch command to get camera device ID
+      request_device_id();
+      state = SETUP_DEV_POSITIONS;
+      break;
+    }
+  case SETUP_DEV_POSITIONS:
+    {
+      uint8_t cameraDeviceId = read_device_id();
+      // Apply device specific settings
+      switch (cameraDeviceId){
+      case 0x04:
+	{
+	  // PS3DCam attached
+	  OSD3D_MAIN_BATT_VOLTAGE_POSITION = 810;
+	  OSD3D_ARMED_CLOCK_POSITION       = 830;
+	  OSD3D_MAH_DRAWN_POSITION         = 848;
+	  OSD3D_RSSI_VALUE_POSITION        = 45;
+	  OSD3D_HEADLINE_POSITION          = 422;
+	  OSD3D_FLYMODE_POSITION           = 86;
+	  devConvergenceValue = 55; // OSD convergence value 0 to 100
+	  state = SETUP_DEV_CONVERGENCE;
+	  break;
+	}
+      default:
+	{
+	  // NanoCam3D Mk.1 attached
+	  OSD3D_MAIN_BATT_VOLTAGE_POSITION = 0;
+	  OSD3D_ARMED_CLOCK_POSITION       = 13;
+	  OSD3D_MAH_DRAWN_POSITION         = 25;
+	  OSD3D_RSSI_VALUE_POSITION        = 32;
+	  OSD3D_HEADLINE_POSITION          = 43;
+	  OSD3D_FLYMODE_POSITION           = 60;
+	  // does not support convergence setting
+	  state = OSD3D_MAIN_BATT_VOLTAGE;
+	  break;
+	}	
+      }
+      break;
+    }
+  case SETUP_DEV_CONVERGENCE:
+    {
+      setupDeviceConvergence();
+      state = OSD3D_MAIN_BATT_VOLTAGE;
+      break;
+    }
+  case OSD3D_MAIN_BATT_VOLTAGE:
+    {
+      osdDrawSingleElement(nc3dPort, state, OSD3D_MAIN_BATT_VOLTAGE_POSITION);
+      state = OSD3D_ARMED_CLOCK;
+      break;
+    }
+  case OSD3D_ARMED_CLOCK:
+    {
+      osdDrawSingleElement(nc3dPort, state, OSD3D_ARMED_CLOCK_POSITION);
+      state = OSD3D_FLYMODE;
+      break;
+    }
+  case OSD3D_FLYMODE:
+    {
+      osdDrawSingleElement(nc3dPort, state, OSD3D_FLYMODE_POSITION);
+      state = OSD3D_HEADLINE;
+      break;
+    }
+  case OSD3D_HEADLINE:
+    {
+      osdDrawSingleElement(nc3dPort, state, OSD3D_HEADLINE_POSITION);
+      state = OSD3D_MAH_DRAWN;
+      break;
+    }
+  case OSD3D_MAH_DRAWN:
+    {
+      osdDrawSingleElement(nc3dPort, state, OSD3D_MAH_DRAWN_POSITION);
+      state = OSD3D_RSSI_VALUE;
+      break;
+    }
+  case OSD3D_RSSI_VALUE:
+    {
+      osdDrawSingleElement(nc3dPort, state, OSD3D_RSSI_VALUE_POSITION);
+      state = OSD3D_TMP;
+      break;
+    }
+  case OSD3D_TMP:
+    {
+      state = REQ_DEV_ID;
+      break;
+    }
+  default:
+    {
+      state = REQ_DEV_ID;
+      break;
+    }
+  }
 }
 
 /*****************************************************************************/
@@ -371,43 +581,30 @@ static void process_nc3d(void)
 /* are called in src/main/telemetry/telemetry.c				     */
 /*****************************************************************************/
 
+void handleNc3dTelemetry(void)
+{  
+  if (!nc3dEnabled || !nc3dPort) {
+    // Fallback
+    return;
+  }
+  else {
+    // Normal Operation
+    process_nc3d();
+  }
+}
+
+void freeNc3dTelemetryPort(void)
+{
+  closeSerialPort(nc3dPort);
+  nc3dPort = NULL;
+  nc3dEnabled = false;
+}
+
 void initNc3dTelemetry(void)
 {
   portConfig = findSerialPortConfig(FUNCTION_TELEMETRY_NC3D);
   nc3dPortSharing = determinePortSharing(portConfig, FUNCTION_TELEMETRY_NC3D);
-}
-
-void checkNc3dTelemetryState(void)
-{
-  if (portConfig && telemetryCheckRxPortShared(portConfig, rxRuntimeState.serialrxProvider)) {
-    if (!nc3dEnabled && telemetrySharedPort != NULL) {
-      nc3dPort = telemetrySharedPort;
-      nc3dEnabled = true;
-    }
-  } else {
-    bool newTelemetryEnabledValue = telemetryDetermineEnabledState(nc3dPortSharing);
-    if (newTelemetryEnabledValue == nc3dEnabled)
-      return;
-    if (newTelemetryEnabledValue)
-      configureNc3dTelemetryPort();
-    else
-      freeNc3dTelemetryPort();
-  }
-}
-
-void handleNc3dTelemetry(void)
-{
-  static uint32_t nc3d_lastCycleTime;
-  uint32_t now;
-  if (!nc3dEnabled)
-    return;
-  if (!nc3dPort)
-    return;
-  now = millis();
-  if ((now - nc3d_lastCycleTime) >= NC3D_CYCLETIME) {
-    process_nc3d();
-    nc3d_lastCycleTime = now;
-  }
+  rescheduleTask(TASK_TELEMETRY, NC3D_TASK_PERIOD_US);
 }
 
 void configureNc3dTelemetryPort(void)
@@ -430,11 +627,19 @@ void configureNc3dTelemetryPort(void)
   nc3dEnabled = true;
 }
 
-void freeNc3dTelemetryPort(void)
+void checkNc3dTelemetryState(void)
 {
-  closeSerialPort(nc3dPort);
-  nc3dPort = NULL;
-  nc3dEnabled = false;
-}
+  bool newTelemetryEnabledValue = telemetryDetermineEnabledState(nc3dPortSharing);
 
+  if (newTelemetryEnabledValue == nc3dEnabled) {
+    return;
+  }
+  
+  if (newTelemetryEnabledValue) {
+    configureNc3dTelemetryPort();
+  }
+  else {
+    freeNc3dTelemetryPort();
+  }
+}
 #endif
