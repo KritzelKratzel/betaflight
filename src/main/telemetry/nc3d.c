@@ -364,6 +364,13 @@ static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint16_t 
     }
   }
 
+  // Clear all buffers in case OSD disable switch is enabled.
+  // Overrule BOXOSD in case batteryState is no longer OK
+  if (IS_RC_MODE_ACTIVE(BOXOSD) && (getBatteryState() == BATTERY_OK)) {
+    // just send out spaces...
+    memset(buff,' ',strlen(buff));
+  }
+
   // Send Data in buff to serial port with header and footer.
   if (strlen(buff) > 0) {
     // if buff is emptly nothing needs to be sent.
