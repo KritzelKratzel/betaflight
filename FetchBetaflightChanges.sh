@@ -9,6 +9,7 @@
 # https://help.github.com/en/github/getting-started-with-github/fork-a-repo
 # https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/syncing-a-fork
 
+git pull origin 4.2-maintenance
 git fetch upstream
 git checkout 4.2-maintenance
 git merge upstream/4.2-maintenance
