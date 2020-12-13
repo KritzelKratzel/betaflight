@@ -1,5 +1,5 @@
 /*
- * This file is part of Cleanflight, Betaflight and INAV.
+ * This file is part of Cleanflight and Betaflight.
  *
  * Cleanflight and Betaflight are free software. You can redistribute
  * this software and/or modify this software under the terms of the
@@ -7,7 +7,7 @@
  * Foundation, either version 3 of the License, or (at your option)
  * any later version.
  *
- * Cleanflight, Betaflight and INAV are distributed in the hope that they
+ * Cleanflight and Betaflight are distributed in the hope that they
  * will be useful, but WITHOUT ANY WARRANTY; without even the implied
  * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * See the GNU General Public License for more details.
@@ -18,8 +18,28 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define MSP2_BETAFLIGHT_BIND                0x3000
-#define MSP2_MOTOR_OUTPUT_REORDERING        0x3001
-#define MSP2_SET_MOTOR_OUTPUT_REORDERING    0x3002
-#define MSP2_SEND_DSHOT_COMMAND             0x3003
+#include <stdint.h>
+#include <stdbool.h>
+#include "platform.h"
+
+#include "config_helper.h"
+#include "io/serial.h"
+#include "pg/piniobox.h"
+#include "pg/sdcard.h"
+#include "pg/motor.h"
+#include "target.h"
+#include "config/config.h"
+#include "drivers/pwm_output.h"
+
+#define  USE_TARGET_CONFIG
+
+void targetConfiguration(void)
+{
+    pinioBoxConfigMutable()->permanentId[0] = 40;
+    pinioBoxConfigMutable()->permanentId[1] = 41;
+
+    sdcardConfigMutable()->mode = SDCARD_MODE_SDIO;
+    sdcardConfigMutable()->useDma = true;
+
+}
 
