@@ -275,7 +275,7 @@ static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint16_t 
   char buff[OSD3D_ELEMENT_BUFFER_LENGTH] = "";
   static timeUs_t flyTime = 0;
   static timeUs_t lastTimeUs = 0;
-
+  static bool soFarNoWarningDetected = true;
 
 
   // Prepare data in ASCII format in buff[]
@@ -362,6 +362,26 @@ static void osdDrawSingleElement(serialPort_t *nc3dPort, uint8_t item, uint16_t 
     {
       break;
     }
+  }
+
+  //
+  // OSD Disable Switch
+  // Clear buff in case OSD disable switch is enabled, but overrule
+  // this setting in case some warning (e.g. battery was detected)
+  //
+  if (!(IS_RC_MODE_ACTIVE(BOXOSD))) {
+    // Reset sticky warning flag when OSD is visible (BOXOSD not set)
+    soFarNoWarningDetected = true;
+  }
+  else if (soFarNoWarningDetected) {
+    // OSD not visible. Now see if if everything is alright with the
+    // aircraft. This may extend in future beyond getBatteryState().
+    soFarNoWarningDetected = (getBatteryState() == BATTERY_OK);	
+  }
+  // Now clear buff if OSD is disabled and so far no warning was detected
+  if (IS_RC_MODE_ACTIVE(BOXOSD) && soFarNoWarningDetected) {
+    // just send out spaces instead of characters
+    memset(buff,' ',strlen(buff));
   }
 
   // Send Data in buff to serial port with header and footer.
