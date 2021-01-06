@@ -121,6 +121,7 @@
 #include "telemetry/frsky_hub.h"
 #include "telemetry/ibus_shared.h"
 #include "telemetry/telemetry.h"
+#include "telemetry/nc3d.h"
 
 #include "settings.h"
 
@@ -1665,6 +1666,11 @@ const clivalue_t valueTable[] = {
     { "box_user_2_name", VAR_UINT8 | HARDWARE_VALUE | MODE_STRING, .config.string = { 1, MAX_BOX_USER_NAME_LENGTH, STRING_FLAGS_NONE }, PG_MODE_ACTIVATION_CONFIG, offsetof(modeActivationConfig_t, box_user_2_name) },
     { "box_user_3_name", VAR_UINT8 | HARDWARE_VALUE | MODE_STRING, .config.string = { 1, MAX_BOX_USER_NAME_LENGTH, STRING_FLAGS_NONE }, PG_MODE_ACTIVATION_CONFIG, offsetof(modeActivationConfig_t, box_user_3_name) },
     { "box_user_4_name", VAR_UINT8 | HARDWARE_VALUE | MODE_STRING, .config.string = { 1, MAX_BOX_USER_NAME_LENGTH, STRING_FLAGS_NONE }, PG_MODE_ACTIVATION_CONFIG, offsetof(modeActivationConfig_t, box_user_4_name) },
+#endif
+
+// PG_CAM3D_CONFIG
+#if defined(USE_TELEMETRY_NC3D)
+    { "cam3d_convergence",          VAR_UINT8   | MASTER_VALUE, .config.minmaxUnsigned = { 0, 100 }, PG_CAM3D_CONFIG, offsetof(cam3dProfile_t, convergence) },    
 #endif
 };
 
