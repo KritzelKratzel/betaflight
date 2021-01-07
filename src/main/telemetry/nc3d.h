@@ -38,6 +38,13 @@ typedef enum {
   OSD3D_MAH_DRAWN,
   OSD3D_RSSI_VALUE,
   OSD3D_TMP
-} osd_items_e;
+} osdItems_e;
 
-#define OSD3D_ELEMENT_BUFFER_LENGTH 32
+typedef struct cam3dProfile_s {
+  // Update initNc3dTelemetry() when adding members here.
+  uint8_t convergence;
+} cam3dProfile_t;
+
+PG_DECLARE(cam3dProfile_t, cam3dProfile);
+
+extern cam3dProfile_t *currentCam3dProfile;

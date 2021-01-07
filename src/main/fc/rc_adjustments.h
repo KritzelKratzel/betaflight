@@ -27,8 +27,8 @@
 #include "pg/pg.h"
 
 typedef enum {
-    ADJUSTMENT_NONE = 0,
-    ADJUSTMENT_RC_RATE,
+    ADJUSTMENT_NONE = 0,                         
+    ADJUSTMENT_RC_RATE,                 // Adjustment function #1: RC_RATE
     ADJUSTMENT_RC_EXPO,
     ADJUSTMENT_THROTTLE_EXPO,
     ADJUSTMENT_PITCH_ROLL_RATE,
@@ -51,17 +51,18 @@ typedef enum {
     ADJUSTMENT_RC_RATE_YAW,
     ADJUSTMENT_PITCH_ROLL_F,
     ADJUSTMENT_FEEDFORWARD_TRANSITION,
-    ADJUSTMENT_HORIZON_STRENGTH,
-    ADJUSTMENT_ROLL_RC_RATE,
-    ADJUSTMENT_PITCH_RC_RATE,
-    ADJUSTMENT_ROLL_RC_EXPO,
-    ADJUSTMENT_PITCH_RC_EXPO,
-    ADJUSTMENT_PID_AUDIO,
+    ADJUSTMENT_HORIZON_STRENGTH,        // Adjustment function #24: HORIZON_STRENGTH
+    ADJUSTMENT_ROLL_RC_RATE,            // Not counted due to ...
+    ADJUSTMENT_PITCH_RC_RATE,           // ... FALLTHROUGH ...
+    ADJUSTMENT_ROLL_RC_EXPO,            // ... statements in ...
+    ADJUSTMENT_PITCH_RC_EXPO,           // ... rc_adjustments.c.
+    ADJUSTMENT_PID_AUDIO,               // Adjustment function #25: PID_AUDIO
     ADJUSTMENT_PITCH_F,
     ADJUSTMENT_ROLL_F,
     ADJUSTMENT_YAW_F,
     ADJUSTMENT_OSD_PROFILE,
-    ADJUSTMENT_LED_PROFILE,
+    ADJUSTMENT_LED_PROFILE,             // Adjustment function #30: LED_PROFILE
+    ADJUSTMENT_3DCAM_CONVERGENCE,       // Adjustment function #31: my contribution
     ADJUSTMENT_FUNCTION_COUNT
 } adjustmentFunction_e;
 

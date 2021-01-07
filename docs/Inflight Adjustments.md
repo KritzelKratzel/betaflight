@@ -134,6 +134,7 @@ The adjustment is made when the adjustment channel is in the high or low positio
 | 28    | YAW\_F | Step / absolute setting |
 | 29    | OSD\_PROFILE | Switch between 3 OSD profiles |
 | 30    | LED\_PROFILE | Switch between the RACE / BEACON / STATUS LED strip profiles |
+| 31    | 3DCAM\_CONVERGENCE | Step / absolute setting |
 
 ## Examples
 

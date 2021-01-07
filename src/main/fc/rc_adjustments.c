@@ -59,6 +59,8 @@
 
 #include "rx/rx.h"
 
+#include "telemetry/nc3d.h"
+
 #include "rc_adjustments.h"
 
 #define ADJUSTMENT_RANGE_COUNT_INVALID -1
@@ -224,6 +226,10 @@ static const adjustmentConfig_t defaultAdjustmentConfigs[ADJUSTMENT_FUNCTION_COU
         .adjustmentFunction = ADJUSTMENT_LED_PROFILE,
         .mode = ADJUSTMENT_MODE_SELECT,
         .data = { .switchPositions = 3 }
+    }, {
+        .adjustmentFunction = ADJUSTMENT_3DCAM_CONVERGENCE,
+        .mode = ADJUSTMENT_MODE_STEP,
+        .data = { .step = 1 }
     }
 };
 
@@ -262,6 +268,8 @@ static const char * const adjustmentLabels[] = {
     "ROLL F",
     "YAW F",
     "OSD PROFILE",
+    "LED PROFILE", // missing in Betaflight?
+    "3D CONVERGENCE"
 };
 
 static int adjustmentRangeNameIndex = 0;
@@ -421,6 +429,11 @@ static int applyStepAdjustment(controlRateConfig_t *controlRateConfig, uint8_t a
         currentPidProfile->feedForwardTransition = newValue;
         blackboxLogInflightAdjustmentEvent(ADJUSTMENT_FEEDFORWARD_TRANSITION, newValue);
         break;
+    case ADJUSTMENT_3DCAM_CONVERGENCE:
+        newValue = constrain(currentCam3dProfile->convergence + delta, 0, 100);
+        currentCam3dProfile->convergence = newValue;
+        blackboxLogInflightAdjustmentEvent(ADJUSTMENT_3DCAM_CONVERGENCE, newValue);
+	break;
     default:
         newValue = -1;
         break;
@@ -582,6 +595,12 @@ static int applyAbsoluteAdjustment(controlRateConfig_t *controlRateConfig, adjus
         currentPidProfile->feedForwardTransition = newValue;
         blackboxLogInflightAdjustmentEvent(ADJUSTMENT_FEEDFORWARD_TRANSITION, newValue);
         break;
+    case ADJUSTMENT_3DCAM_CONVERGENCE:
+        // Currently hard-coded range of convergence offset 0 to 100 for PSCam3D
+        newValue = constrain(value, 0, 100);
+        currentCam3dProfile->convergence = newValue;
+        blackboxLogInflightAdjustmentEvent(ADJUSTMENT_3DCAM_CONVERGENCE, newValue);
+	break;
     default:
         newValue = -1;
         break;

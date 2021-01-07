@@ -211,6 +211,7 @@
 #include "io/ledstrip.h"
 #include "io/beeper.h"
 
+#include "pg/pg.h"
 #include "pg/rx.h"
 
 #include "rx/rx.h"
@@ -226,6 +227,14 @@
 #include "telemetry/telemetry.h"
 #include "telemetry/nc3d.h"
 
+// Parameter Group Registration Stuff
+PG_REGISTER_WITH_RESET_TEMPLATE(cam3dProfile_t, cam3dProfile, PG_CAM3D_CONFIG,        0);
+PG_RESET_TEMPLATE(cam3dProfile_t, cam3dProfile,
+		  .convergence = 55, // default convergence value
+);
+
+// Global, read/writable cam3dProfile object, initialized in initNc3dTelemetry()
+cam3dProfile_t *currentCam3dProfile;
 
 // OSD elements currently defined with static positions
 /* #define OSD3D_MAIN_BATT_VOLTAGE_POSITION  0 */
@@ -241,10 +250,9 @@ static uint16_t OSD3D_RSSI_VALUE_POSITION        = 0;
 static uint16_t OSD3D_HEADLINE_POSITION          = 0;
 static uint16_t OSD3D_FLYMODE_POSITION           = 0;
 
-// static osd_items_e state = OSD3D_MAIN_BATT_VOLTAGE;
-static osd_items_e state = REQ_DEV_ID;
 
 // further arrangements
+#define OSD3D_ELEMENT_BUFFER_LENGTH 32
 #define NC3D_TASK_PERIOD_US (10000) // TASK_TELEMETRY period in us
 #define SYM_RSSI 0x90
 #define TELEMETRY_NC3D_INITIAL_PORT_MODE MODE_RXTX
@@ -253,12 +261,14 @@ static osd_items_e state = REQ_DEV_ID;
 #define CMD_GET_DEVICE_ID (0x01)
 #define CMD_SET_CONVERGENCE (0x02)
 
+
+static osdItems_e state = REQ_DEV_ID;
 static serialPort_t *nc3dPort;
 static const serialPortConfig_t *portConfig;
 static bool nc3dEnabled = false;
 static portSharing_e nc3dPortSharing;
 static bool osdBlinkMask = true;
-static uint8_t devConvergenceValue=50;
+
 
 static void blinky(char *str){
   // make str blinky ... needed for OSD alarm elements.
@@ -418,18 +428,6 @@ static uint8_t read_device_id(void){
   // Check UART Rx buffer to see if there was a response and if yes which one
 
   return (serialRxBytesWaiting(nc3dPort) == 1) ? serialRead(nc3dPort) : 0x00;
-
-  /* uint8_t data; */
-  
-  /* if (serialRxBytesWaiting(nc3dPort) == 1) { */
-  /*   // exactly one byte shall be in buffer if there is a PS3DCam attached to the FC */
-  /*   data = serialRead(nc3dPort); */
-  /* } */
-  /* else { */
-  /*   // no response, so there is most likely a NanoCam3D Mk.1 attached to the FC */
-  /*   data = 0x00; */
-  /* } */
-  /* return data; */
 }
 
 static void request_device_id(void){
@@ -470,8 +468,8 @@ static void setupDeviceConvergence(void){
   // command
   serialWrite(nc3dPort, CMD_SET_CONVERGENCE);
   uint8_t crc = CMD_SET_CONVERGENCE;
-  serialWrite(nc3dPort, devConvergenceValue);
-  crc ^= devConvergenceValue;
+  serialWrite(nc3dPort, currentCam3dProfile->convergence);
+  crc ^= currentCam3dProfile->convergence;
   // serial payload ends here
   
   // crc
@@ -521,7 +519,7 @@ static void process_nc3d(void)
 	  OSD3D_RSSI_VALUE_POSITION        = 45;
 	  OSD3D_HEADLINE_POSITION          = 422;
 	  OSD3D_FLYMODE_POSITION           = 86;
-	  devConvergenceValue = 55; // OSD convergence value 0 to 100
+	  // supports convergence setting
 	  state = SETUP_DEV_CONVERGENCE;
 	  break;
 	}
@@ -622,6 +620,21 @@ void freeNc3dTelemetryPort(void)
 
 void initNc3dTelemetry(void)
 {
+  // Copy content of read-only global object cam3dProfile() to global read-write
+  // object currentCam3dProfile. We want to have a read-write object as convergence
+  // can be set via rcAdjustmentFunction. Tried memcpy(), but to no avail:
+  // 
+  // memcpy(currentCam3dProfile, &cam3dProfile, sizeof(cam3dProfile_t));
+  // Throws: warning: ISO C forbids passing argument 2 of 'memcpy' between function
+  //         pointer and 'void *'
+  //
+  // memcpy(currentCam3dProfile, (void *)cam3dProfile, sizeof(cam3dProfile_t));
+  // Throws: warning: ISO C forbids conversion of function pointer to object pointer
+  //         type
+  //
+  // Therefore copy by member. However, I'm not really happy with that.
+  currentCam3dProfile->convergence = cam3dProfile()->convergence;
+
   portConfig = findSerialPortConfig(FUNCTION_TELEMETRY_NC3D);
   nc3dPortSharing = determinePortSharing(portConfig, FUNCTION_TELEMETRY_NC3D);
   rescheduleTask(TASK_TELEMETRY, NC3D_TASK_PERIOD_US);

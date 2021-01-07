@@ -152,12 +152,13 @@
 #define PG_MODE_ACTIVATION_CONFIG 553
 #define PG_BETAFLIGHT_END 553
 
+// 3D-FPV camera configuration
+#define PG_CAM3D_CONFIG 1023
 
 // OSD configuration (subject to change)
 #define PG_OSD_FONT_CONFIG 2047
 #define PG_OSD_VIDEO_CONFIG 2046
 #define PG_OSD_ELEMENT_CONFIG 2045
-
 
 // 4095 is currently the highest number that can be used for a PGN due to the top 4 bits of the 16 bit value being reserved for the version when the PG is stored in an EEPROM.
 #define PG_RESERVED_FOR_TESTING_1 4095
