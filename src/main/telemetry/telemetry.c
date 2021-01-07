@@ -61,7 +61,7 @@
 #include "telemetry/msp_shared.h"
 #include "telemetry/nc3d.h"
 
-PG_REGISTER_WITH_RESET_TEMPLATE(telemetryConfig_t, telemetryConfig, PG_TELEMETRY_CONFIG, 4);
+PG_REGISTER_WITH_RESET_TEMPLATE(telemetryConfig_t, telemetryConfig, PG_TELEMETRY_CONFIG, 5);
 
 PG_RESET_TEMPLATE(telemetryConfig_t, telemetryConfig,
     .telemetry_inverted = false,
@@ -79,7 +79,7 @@ PG_RESET_TEMPLATE(telemetryConfig_t, telemetryConfig,
             IBUS_SENSOR_TYPE_RPM_FLYSKY,
             IBUS_SENSOR_TYPE_EXTERNAL_VOLTAGE
     },
-    .disabledSensors = ESC_SENSOR_ALL,
+    .disabledSensors = ESC_SENSOR_ALL | SENSOR_CAP_USED,
     .mavlink_mah_as_heading_divisor = 0,
 );
 
