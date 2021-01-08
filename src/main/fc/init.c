@@ -102,6 +102,7 @@
 #include "io/beeper.h"
 #include "io/dashboard.h"
 #include "io/displayport_crsf.h"
+#include "io/displayport_tmg_osd.h"
 #include "io/displayport_frsky_osd.h"
 #include "io/displayport_max7456.h"
 #include "io/displayport_msp.h"
@@ -942,8 +943,19 @@ void init(void)
         case OSD_DISPLAYPORT_DEVICE_AUTO:
             FALLTHROUGH;
 
+#if defined(USE_TMGOSD)
+        // Test OSD_DISPLAYPORT_DEVICE_TMGOSD first.
+	case OSD_DISPLAYPORT_DEVICE_TMGOSD:
+	    osdDisplayPort = tmgOsdDisplayPortInit();
+	    if (osdDisplayPort || device == OSD_DISPLAYPORT_DEVICE_TMGOSD) {
+	        osdDisplayPortDevice = OSD_DISPLAYPORT_DEVICE_TMGOSD;
+	        break;
+	    }
+            FALLTHROUGH;
+#endif
+
 #if defined(USE_FRSKYOSD)
-        // Test OSD_DISPLAYPORT_DEVICE_FRSKYOSD first, since an FC could
+        // Test OSD_DISPLAYPORT_DEVICE_FRSKYOSD second, since an FC could
         // have a builtin MAX7456 but also an FRSKYOSD connected to an
         // uart.
         case OSD_DISPLAYPORT_DEVICE_FRSKYOSD:

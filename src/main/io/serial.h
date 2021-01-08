@@ -32,6 +32,8 @@ typedef enum {
     PORTSHARING_SHARED
 } portSharing_e;
 
+// needs to be identical to 'self.SERIAL_PORT_FUNCTIONS' in
+// 'src/js/msp/MSPHelper.js' in betafligh-configurator
 typedef enum {
     FUNCTION_NONE                = 0,
     FUNCTION_MSP                 = (1 << 0),  // 1
@@ -53,6 +55,8 @@ typedef enum {
     FUNCTION_FRSKY_OSD           = (1 << 16), // 65536
     FUNCTION_TMG_OSD             = (1 << 17), // 131072
 } serialPortFunction_e;
+// serial ports function mask now 32 bits wide since merge of
+// https://github.com/betaflight/betaflight/pull/9332
 
 #define TELEMETRY_SHAREABLE_PORT_FUNCTIONS_MASK (FUNCTION_TELEMETRY_FRSKY_HUB | FUNCTION_TELEMETRY_LTM | FUNCTION_TELEMETRY_MAVLINK)
 #define TELEMETRY_PORT_FUNCTIONS_MASK (TELEMETRY_SHAREABLE_PORT_FUNCTIONS_MASK | FUNCTION_TELEMETRY_HOTT | FUNCTION_TELEMETRY_SMARTPORT | FUNCTION_TELEMETRY_NC3D)

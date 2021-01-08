@@ -250,6 +250,7 @@ typedef enum {
     OSD_DISPLAYPORT_DEVICE_MAX7456,
     OSD_DISPLAYPORT_DEVICE_MSP,
     OSD_DISPLAYPORT_DEVICE_FRSKYOSD,
+    OSD_DISPLAYPORT_DEVICE_TMGOSD,
 } osdDisplayPortDevice_e;
 
 // Make sure the number of warnings do not exceed the available 32bit storage

@@ -70,7 +70,17 @@ Collection of thoughts, ideas and useful snippets.
 
 ### Implementation of TMGOSD based on FRSKYOSD with full Integration in Betaflight-CMS
 
-FrSky OSD related Pull-Requests with modified files:
+Log of modified files in betaflight:
+
+- `target/common_pre.h`: Added `#define USE_TMGOSD`.
+- `main/osd/osd.h`: Appended `OSD_DISPLAYPORT_DEVICE_TMGOSD` to `osdDisplayPortDevice_e`.
+- `cli/settings.c`: Appended `TMGOSD` to `lookupTableOsdDisplayPortDevice`.
+
+Remarks:
+
+- Display must be set via CLI with `set osd_displayport_device = TMGOSD`.
+
+### FrSky OSD related Pull-Requests with modified files:
 
 - https://github.com/betaflight/betaflight/pull/9127/files?file-filters%5B%5D=.c
   - **committed on 30 Nov 2019**
