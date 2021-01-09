@@ -80,6 +80,50 @@ Remarks:
 
 - Display must be set via CLI with `set osd_displayport_device = TMGOSD`.
 
+**Levels of Abstraction**
+
+1. `drivers/display.c`: Provides top-level functions used by OSD and CMS. Functions are the same for different kind of displays.
+2. `io/displayport_frsky_osd.c`: Defines display-specific `static const displayPortVTable_t frskyOsdVTable`, where each member is a pre-defined function pointer with standardized name. Those pointers point to hardware-specific implementation functions, which can be named arbitrarily. Furthermore provides interface to only one public function:  `frskyOsdDisplayPortInit()`.
+   - Set `displayPort->cols/rows` somewhere on this level, e.g. `io/displayport_max7456.c:184`.
+3. `io/frsky_osd.c`: Collects all hardware-specific implementation functions to all function pointers mentioned in level above.
+
+
+
+**Call Tree (based on FRSKY_OSD):**
+
+- `frsky_osd.c` frskyOsdDisplayPortInit(const videoSystem_e videoSystem)
+
+  - frskyOsdInit(videoSystem)
+
+    - findSerialPortConfig(FUNCTION_FRSKY_OSD): Simply map to `FUNCTION_TMG_OSD`.
+    - openSerialPort(portConfig->identifier,
+                  FUNCTION_FRSKY_OSD, NULL, NULL, FRSKY_OSD_BAUDRATE,
+                  MODE_RXTX, portOptions): Define `TMG_OSD_BAUDRATE` in `tmg_osd.h`. Leave `MODE_RXTX` and make portOptions `SERIAL_NOT_INVERTED`.
+    - frskyOsdStateReset(port)
+      - frskyOsdResetReceiveBuffer(): Inits on `state.recvBuffer`.
+      - frskyOsdResetSendBuffer(): Inits on `state.sendBuffer`.
+      - Additional initialization of static variable `frskyOsdState_t state`.
+    - frskyOsdRequestInfo(): 
+      - frskyOsdSendAsyncCommand(OSD_CMD_INFO, &version, sizeof(version)): Probably the first point of something being sent to OSD subsystem.
+        - frskyOsdSendCommand(cmd, data, size)
+          - frskyOsdFlushSendBuffer(): Several calls to `frskyOsdProcessCommandU8()`, apparently sends out data.
+            - frskyOsdProcessCommandU8(...)
+              - serialWrite(state.port, c): Finally.
+      - frskyOsdFlushSendBuffer(): Twice?
+
+  - displayInit(&frskyOsdDisplayPort, &frskyOsdVTable): In `drivers/display.c`.
+
+    - ```c
+      instance->vTable = vTable;
+      instance->vTable->clearScreen(instance);
+      instance->useFullscreen = false;
+      instance->cleared = true;
+      instance->grabCount = 0;
+      instance->cursorRow = -1;
+      ```
+
+  - redraw(&frskyOsdDisplayPort)
+
 ### FrSky OSD related Pull-Requests with modified files:
 
 - https://github.com/betaflight/betaflight/pull/9127/files?file-filters%5B%5D=.c
