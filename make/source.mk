@@ -170,6 +170,7 @@ COMMON_SRC = \
             io/displayport_srxl.c \
             io/displayport_crsf.c \
             io/displayport_hott.c \
+            io/tmg_osd.c \
             io/frsky_osd.c \
             io/rcdevice_cam.c \
             io/rcdevice.c \

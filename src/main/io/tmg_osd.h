@@ -19,8 +19,21 @@
  */
 #pragma once
 
-#include "drivers/display.h"
-#include "drivers/osd.h"
-#include "io/serial.h"
+#define TMG_OSD_NUM_XCHARS 45
+#define TMG_OSD_NUM_YCHARS 20
+#define TMG_OSD_NUM_OSD_CHARS (NUM_XCHARS*NUM_YCHARS)
+#define TMG_OSD_BAUDRATE 115200
 
-displayPort_t *tmgOsdDisplayPortInit();
+#define CMD_INVALID 0x00
+#define CMD_GET_DEVICE_ID 0x01
+#define CMD_SET_CONVERGENCE 0x02
+#define CMD_CLR_SCREEN 0x03
+#define CMD_SHOW_CHARS 0x04
+
+#include <stddef.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+
+
+void tmgOsdClearScreen(void *device);

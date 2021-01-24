@@ -30,7 +30,7 @@
 #include "drivers/display.h"
 
 #include "io/displayport_tmg_osd.h"
-// #include "io/frsky_osd.h"
+#include "io/tmg_osd.h"
 
 static displayPort_t tmgOsdDisplayPort;
 
@@ -50,9 +50,8 @@ static int release(displayPort_t *displayPort)
 
 static int clearScreen(displayPort_t *displayPort)
 {
-  UNUSED(displayPort);
-  // FIXME
-  // frskyOsdClearScreen(); 
+  // UNUSED(displayPort);
+  tmgOsdClearScreen(displayPort->device); 
   return 0;
 }
 
@@ -208,16 +207,25 @@ static const displayPortVTable_t tmgOsdVTable = {
 
 displayPort_t *tmgOsdDisplayPortInit(void)
 {
-    /* if (tmgOsdInit()) { */
-    /*     displayInit(&tmgOsdDisplayPort, &tmgOsdVTable); */
-    /*     redraw(&tmgOsdDisplayPort); */
-    /*     return &tmgOsdDisplayPort; */
-    /* } */
-    /* return NULL; */
-
-  // Preliminary
-  displayInit(&tmgOsdDisplayPort, &tmgOsdVTable);
-  return &tmgOsdDisplayPort;
+  const serialPortConfig_t *portConfig = findSerialPortConfig(FUNCTION_TMG_OSD);
+  if (portConfig) {
+    portOptions_e portOptions = 0; // see drivers/serial.h
+    serialPort_t *port = openSerialPort(portConfig->identifier,
+					FUNCTION_TMG_OSD,
+					NULL, NULL,
+					TMG_OSD_BAUDRATE,
+					MODE_RXTX,
+					portOptions);
+    if (port) {
+      tmgOsdDisplayPort.device = port;
+      displayInit(&tmgOsdDisplayPort, &tmgOsdVTable); // launches clearScreen()
+      tmgOsdDisplayPort.rows = TMG_OSD_NUM_YCHARS;
+      tmgOsdDisplayPort.cols = TMG_OSD_NUM_XCHARS;
+      tmgOsdDisplayPort.useDeviceBlink = false;
+      return &tmgOsdDisplayPort;
+    }
+  }
+  return NULL;
 }
 
 #endif // USE_TMGOSD
