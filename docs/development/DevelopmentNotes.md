@@ -68,26 +68,276 @@ Further reading: https://betaflightgroup.slack.com/archives/C221J1H54/p160988664
 
 Collection of thoughts, ideas and useful snippets.
 
-### Implementation of TMGOSD based on FRSKYOSD with full Integration in Betaflight-CMS
+### OSD character position coordinates
 
-Log of modified files in betaflight:
+The `#define` statements in `src/main/osd/osd.h` give some info about the bit pattern:
 
-- `target/common_pre.h`: Added `#define USE_TMGOSD`.
-- `main/osd/osd.h`: Appended `OSD_DISPLAYPORT_DEVICE_TMGOSD` to `osdDisplayPortDevice_e`.
-- `cli/settings.c`: Appended `TMGOSD` to `lookupTableOsdDisplayPortDevice`.
+```c
+#define OSD_PROFILE_BITS_POS 11
+#define OSD_PROFILE_MASK    (((1 << OSD_PROFILE_COUNT) - 1) << OSD_PROFILE_BITS_POS)
+#define OSD_POS_MAX   0x3FF
+#define OSD_POSCFG_MAX   (OSD_PROFILE_MASK | 0x3FF) // For CLI values
+#define OSD_PROFILE_FLAG(x)  (1 << ((x) - 1 + OSD_PROFILE_BITS_POS))
+#define OSD_PROFILE_1_FLAG  OSD_PROFILE_FLAG(1)#ifdef USE_OSD_PROFILES
+#define VISIBLE(x) osdElementVisible(x)
+#define VISIBLE_IN_OSD_PROFILE(item, profile)    ((item) & ((OSD_PROFILE_1_FLAG) << ((profile)-1)))
+#else
+#define VISIBLE(x) ((x) & OSD_PROFILE_MASK)
+#define VISIBLE_IN_OSD_PROFILE(item, profile) VISIBLE(item)
+#endif// Character coordinate
+#define OSD_POSITION_BITS 5 // 5 bits gives a range 0-31
+#define OSD_POSITION_XY_MASK ((1 << OSD_POSITION_BITS) - 1)
+#define OSD_POS(x,y)  ((x & OSD_POSITION_XY_MASK) | ((y & OSD_POSITION_XY_MASK) << OSD_POSITION_BITS))
+#define OSD_X(x)      (x & OSD_POSITION_XY_MASK)
+#define OSD_Y(x)      ((x >> OSD_POSITION_BITS) & OSD_POSITION_XY_MASK)
+```
 
-Remarks:
+From what I understand the OSD element start coordinate reads as follows:
 
-- Display must be set via CLI with `set osd_displayport_device = TMGOSD`.
+```
++----+----+----+----+
+|--zz|z-yy|yyyx|xxxx|
++----+----+----+----+
+   ^^ ^ ^     ^
+   || | |     |
+   || | |     +------: 5 bit address for x-coordiante (counted from left to right)
+   || | +------------: 5 bit address for y-coordinate (counted from top to bottom)
+   || +--------------: OSD profile 1 flag
+   |+----------------: OSD profile 2 flag
+   +-----------------: OSD profile 3 flag
+```
 
-**Levels of Abstraction**
+Following this bit pattern, bits 15, 14 and 10 are currently unused. Bits 15 and 14 will be used to identify 4 different varieties of each OSD element. At the moment (2021-01-27) there are no plans to use bit 10.
+
+Idea: Extend x-coordinates from 5 bits to 6 bits by using bit 10 as new MSB.
+
+Further reading: https://betaflightgroup.slack.com/archives/C221J1H54/p1611691287121100
+
+### TMG-OSD - List of modified/added Files
+
+#### Useful Shell Commands
+
+`git diff upstream/master origin/master --stat`
+
+```bash
+$ git remote -v
+origin  git@github.com:KritzelKratzel/betaflight.git (fetch)
+origin  git@github.com:KritzelKratzel/betaflight.git (push)
+upstream        https://github.com/betaflight/betaflight.git (fetch)
+upstream        https://github.com/betaflight/betaflight.git (push)
+```
+
+#### betaflight-configurator
+
+- `locales/en/messages.json`: Define new `portsFunction`.
+
+  ```diff
+  @@ -1583,6 +1586,9 @@
+       "portsFunction_FRSKY_OSD": {
+           "message": "OSD (FrSky Protocol)"
+       },
+  +    "portsFunction_TMG_OSD": {
+  +        "message": "OSD (TMG Protocol)"
+  +    },
+       "pidTuningProfileOption": {
+           "message": "Profile $1"
+       },
+  ```
+
+- `src/js/msp/MSPHelper.js`: Extend `self.SERIAL_PORT_FUNCTIONS`.
+
+  ``` diff
+  @@ -33,7 +34,10 @@ function MspHelper() {
+       'RUNCAM_DEVICE_CONTROL': 14, // support communitate with RunCam Device
+       'LIDAR_TF': 15,
+       'FRSKY_OSD': 16,
+  +    'TMG_OSD': 17, // support TheMissingGear 3D-camera devices
+       };
+  +    // serial ports function mask now 32 bits wide since merge of
+  +    // https://github.com/betaflight/betaflight-configurator/pull/1851
+  
+       self.REBOOT_TYPES = {
+           FIRMWARE: 0,
+  ```
+
+- `src/js/tabs/osd.js`: Some tweaks.
+
+  ```diff
+  @@ -1962,6 +1962,7 @@ OSD.msp = {
+  
+           let displayItemsCountActual = OSD.constants.DISPLAY_FIELDS.length;
+  
+  +        // bit flags relate to MSP_OSD_CONFIG message (betaflight/src/main/msp/msp.c)
+           d.flags = view.readU8();
+  
+           if (d.flags > 0 && payload.length > 1) {
+  @@ -1989,8 +1990,9 @@ OSD.msp = {
+           d.state = {};
+           d.state.haveSomeOsd = (d.flags !== 0);
+           d.state.haveMax7456Configured = bit_check(d.flags, 4) || (d.flags === 1 && semver.lt(FC.CONFIG.apiVersion, API_VERSION_1_34));
+  +        d.state.haveTmgOSDConfigured = semver.gte(FC.CONFIG.apiVersion, API_VERSION_1_43) && bit_check(d.flags, 2); // query position of OSD_FLAGS_OSD_HARDWARE_TMGOSD, see msp.c
+           d.state.haveFrSkyOSDConfigured = semver.gte(FC.CONFIG.apiVersion, API_VERSION_1_43) && bit_check(d.flags, 3);
+  -        d.state.haveMax7456FontDeviceConfigured = d.state.haveMax7456Configured || d.state.haveFrSkyOSDConfigured;
+  +        d.state.haveMax7456FontDeviceConfigured = d.state.haveMax7456Configured || d.state.haveFrSkyOSDConfigured || d.state.haveTmgOSDConfigured;
+           d.state.isMax7456FontDeviceDetected = bit_check(d.flags, 5) || (d.state.haveMax7456FontDeviceConfigured && semver.lt(FC.CONFIG.apiVersion, API_VERSION_1_43));
+           d.state.haveOsdFeature = bit_check(d.flags, 0) || (d.flags === 1 && semver.lt(FC.CONFIG.apiVersion, API_VERSION_1_34));
+           d.state.isOsdSlave = bit_check(d.flags, 1) && semver.gte(FC.CONFIG.apiVersion, API_VERSION_1_34);
+  ```
+
+- `src/js/tabs/ports.js`: Define new `TMG_OSD` menu entry in group `peripherals`. 
+
+  ```diff
+  @@ -15,8 +15,10 @@ TABS.ports.initialize = function (callback, scrollPosition) {
+           { name: 'TELEMETRY_FRSKY',      groups: ['telemetry'], sharableWith: ['msp'], notSharableWith: ['peripherals'], maxPorts: 1 },
+           { name: 'TELEMETRY_HOTT',       groups: ['telemetry'], sharableWith: ['msp'], notSharableWith: ['peripherals'], maxPorts: 1 },
+           { name: 'TELEMETRY_SMARTPORT',  groups: ['telemetry'], maxPorts: 1 },
+           { name: 'RX_SERIAL',            groups: ['rx'], maxPorts: 1 },
+           { name: 'BLACKBOX',     groups: ['peripherals'], sharableWith: ['msp'], notSharableWith: ['telemetry'], maxPorts: 1 },
+  +        { name: 'TMG_OSD',      groups: ['peripherals'], sharableWith: ['msp'], notSharableWith: ['telemetry'], maxPorts: 1 },
+       ];
+  
+       if (semver.gte(FC.CONFIG.apiVersion, "1.15.0")) {
+  @@ -57,6 +59,10 @@ TABS.ports.initialize = function (callback, scrollPosition) {
+           functionRules.push({ name: 'FRSKY_OSD', groups: ['peripherals'], maxPorts: 1 });
+       }
+  
+  +    if (semver.gte(FC.CONFIG.apiVersion, API_VERSION_1_43)) {
+  +        functionRules.push({ name: 'TMG_OSD', groups: ['peripherals'], maxPorts: 1 });
+  +    }
+  +
+       for (const rule of functionRules) {
+           rule.displayName = i18n.getMessage(`portsFunction_${rule.name}`);
+       }
+  ```
+
+#### betaflight
+
+- `src/main/cli/settings.c`: Add `TMGOSD` identifier.  Display must be activated later via CLI with `set osd_displayport_device = TMGOSD`.
+
+  ``` diff
+  const char * const lookupTableOsdDisplayPortDevice[] = {
+  -    "NONE", "AUTO", "MAX7456", "MSP", "FRSKYOSD"
+  +    "NONE", "AUTO", "MAX7456", "MSP", "FRSKYOSD", "TMGOSD"
+  ```
+
+- `src/main/io/serial.h`: Define new serial function identifier.
+
+  ```diff
+  +// needs to be identical to 'self.SERIAL_PORT_FUNCTIONS' in
+  +// 'src/js/msp/MSPHelper.js' in betafligh-configurator
+   typedef enum {
+       FUNCTION_NONE                = 0,
+       FUNCTION_MSP                 = (1 << 0),  // 1
+  @@ -42,6 +44,7 @@ typedef enum {
+       FUNCTION_TELEMETRY_SMARTPORT = (1 << 5),  // 32
+       FUNCTION_RX_SERIAL           = (1 << 6),  // 64
+       FUNCTION_BLACKBOX            = (1 << 7),  // 128
+       FUNCTION_TELEMETRY_MAVLINK   = (1 << 9),  // 512
+       FUNCTION_ESC_SENSOR          = (1 << 10), // 1024
+       FUNCTION_VTX_SMARTAUDIO      = (1 << 11), // 2048
+  @@ -50,10 +53,13 @@ typedef enum {
+       FUNCTION_RCDEVICE            = (1 << 14), // 16384
+       FUNCTION_LIDAR_TF            = (1 << 15), // 32768
+       FUNCTION_FRSKY_OSD           = (1 << 16), // 65536
+  +    FUNCTION_TMG_OSD             = (1 << 17), // 131072
+   } serialPortFunction_e;
+  +// serial ports function mask now 32 bits wide since merge of
+  +// https://github.com/betaflight/betaflight/pull/9332
+  
+  ```
+
+- `src/main/target/common_pre.h`: Introduce new pre-processor statement `USE_TMGOSD`.
+
+  ```diff
+  #if (TARGET_FLASH_SIZE > 128)
+  @@ -357,6 +358,7 @@
+   #define USE_CANVAS
+   #define USE_DASHBOARD
+   #define USE_FRSKYOSD
+  +#define USE_TMGOSD
+   #define USE_GPS
+   #define USE_GPS_NMEA
+   #define USE_GPS_UBLOX
+  ```
+
+- `src/main/osd/osd.h`: Add new `OSD_DISPLAYPORT_DEVICE`.
+
+  ```diff
+  @@ -250,6 +250,7 @@ typedef enum {
+       OSD_DISPLAYPORT_DEVICE_MAX7456,
+       OSD_DISPLAYPORT_DEVICE_MSP,
+       OSD_DISPLAYPORT_DEVICE_FRSKYOSD,
+  +    OSD_DISPLAYPORT_DEVICE_TMGOSD,
+   } osdDisplayPortDevice_e;
+  ```
+
+- `src/main/fc/init.c`: Add new case for `OSD_DISPLAYPORT_DEVICE_TMGOSD`.
+
+  ```diff
+  @@ -942,8 +943,19 @@ void init(void)
+           case OSD_DISPLAYPORT_DEVICE_AUTO:
+               FALLTHROUGH;
+  
+  +#if defined(USE_TMGOSD)
+  +        // Test OSD_DISPLAYPORT_DEVICE_TMGOSD first.
+  +       case OSD_DISPLAYPORT_DEVICE_TMGOSD:
+  +           osdDisplayPort = tmgOsdDisplayPortInit();
+  +           if (osdDisplayPort || device == OSD_DISPLAYPORT_DEVICE_TMGOSD) {
+  +               osdDisplayPortDevice = OSD_DISPLAYPORT_DEVICE_TMGOSD;
+  +               break;
+  +           }
+  +            FALLTHROUGH;
+  +#endif
+  +
+   #if defined(USE_FRSKYOSD)
+  -        // Test OSD_DISPLAYPORT_DEVICE_FRSKYOSD first, since an FC could
+  +        // Test OSD_DISPLAYPORT_DEVICE_FRSKYOSD second, since an FC could
+           // have a builtin MAX7456 but also an FRSKYOSD connected to an
+           // uart.
+           case OSD_DISPLAYPORT_DEVICE_FRSKYOSD:
+  ```
+
+- Add a bunch of new files covering the actual implementation of `TMGOSD`. 
+  - `src/main/io/displayport_tmg_osd.c` and `src/main/io/displayport_tmg_osd.h` cover the standardized functions called independently of the actually display port in operation.
+  - `src/main/io/tmg_osd.c` and `src/main/io/tmg_osd.c` implement (if necessary) the actions to be taken upon call to the standardized displayport functions.
+
+- `src/main/msp/msp.c`: Set OSD flags correctly. Use `OSD_FLAGS_RESERVED_1` for that purpose. The flag for `TMGOSD` then is mapped to bit 2 of `osdFlags`. Must match `bit_check(d.flags, 2)` statement in betaflight-configurator `src/js/tabs/osd.js` (see above).
+
+  ```diff
+  @@ -892,7 +892,8 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
+       case MSP_OSD_CONFIG: {
+   #define OSD_FLAGS_OSD_FEATURE           (1 << 0)
+   //#define OSD_FLAGS_OSD_SLAVE             (1 << 1)
+  -#define OSD_FLAGS_RESERVED_1            (1 << 2)
+  +//#define OSD_FLAGS_RESERVED_1            (1 << 2)
+  +#define OSD_FLAGS_OSD_HARDWARE_TMGOSD   (1 << 2)
+   #define OSD_FLAGS_OSD_HARDWARE_FRSKYOSD (1 << 3)
+   #define OSD_FLAGS_OSD_HARDWARE_MAX_7456 (1 << 4)
+   #define OSD_FLAGS_OSD_DEVICE_DETECTED   (1 << 5)
+  @@ -919,7 +920,14 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
+               }
+  
+               break;
+  -        default:
+  +        case OSD_DISPLAYPORT_DEVICE_TMGOSD:
+  +            osdFlags |= OSD_FLAGS_OSD_HARDWARE_TMGOSD;
+  +            if (displayIsReady) {
+  +                osdFlags |= OSD_FLAGS_OSD_DEVICE_DETECTED;
+  +            }
+  +
+  +            break;
+  +         default:
+               break;
+           }
+  ```
+
+#### **Levels of Abstraction**
 
 1. `drivers/display.c`: Provides top-level functions used by OSD and CMS. Functions are the same for different kind of displays.
-2. `io/displayport_frsky_osd.c`: Defines display-specific `static const displayPortVTable_t frskyOsdVTable`, where each member is a pre-defined function pointer with standardized name. Those pointers point to hardware-specific implementation functions, which can be named arbitrarily. Furthermore provides interface to only one public function:  `frskyOsdDisplayPortInit()`.
-   - Set `displayPort->cols/rows` somewhere on this level, e.g. `io/displayport_max7456.c:184`.
-3. `io/frsky_osd.c`: Collects all hardware-specific implementation functions to all function pointers mentioned in level above.
+2. `io/displayport_tmg_osd.c`: Defines display-specific `static const displayPortVTable_t tmgOsdVTable`, where each member is a pre-defined function pointer with standardized name. Those pointers point to hardware-specific implementation functions, which can be named arbitrarily. Furthermore provides interface to only one public function:  `tmgOsdDisplayPortInit()`.
+3. `io/tmg_osd.c`: Collects all hardware-specific implementation functions to all function pointers mentioned in level above.
 
-
+### Implementation of TMGOSD based on FRSKYOSD with full Integration in Betaflight-CMS
 
 **Call Tree (based on FRSKY_OSD):**
 
