@@ -23,4 +23,5 @@
 #include "drivers/osd.h"
 #include "io/serial.h"
 
-displayPort_t *tmgOsdDisplayPortInit();
+displayPort_t *tmgOsdDisplayPortInit(void);
+bool tmgOsdDisplayPortIsNotDetected(void);

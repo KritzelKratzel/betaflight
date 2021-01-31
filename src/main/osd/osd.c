@@ -75,6 +75,7 @@
 #include "io/beeper.h"
 #include "io/flashfs.h"
 #include "io/gps.h"
+#include "io/displayport_tmg_osd.h"
 
 #include "osd/osd.h"
 #include "osd/osd_elements.h"
@@ -143,7 +144,11 @@ static bool backgroundLayerSupported = false;
 escSensorData_t *osdEscDataCombined;
 #endif
 
+#ifdef USE_TMGOSD
+STATIC_ASSERT(OSD_POS_MAX == OSD_POS(63,31), OSD_POS_MAX_incorrect);
+#else
 STATIC_ASSERT(OSD_POS_MAX == OSD_POS(31,31), OSD_POS_MAX_incorrect);
+#endif
 
 PG_REGISTER_WITH_RESET_FN(osdConfig_t, osdConfig, PG_OSD_CONFIG, 9);
 
@@ -265,7 +270,15 @@ static void osdDrawElements(void)
     } else {
         // Background layer not supported, just clear the foreground in preparation
         // for drawing the elements including their backgrounds.
+#ifdef USE_TMGOSD
+        if (tmgOsdDisplayPortIsNotDetected()) {
+	  // TMGOSD does not require screen to be cleared in advance of call to
+	  // osdDrawActiveElements()
+	  displayClearScreen(osdDisplayPort);
+	}
+#else
         displayClearScreen(osdDisplayPort);
+#endif      
     }
 
     osdDrawActiveElements(osdDisplayPort);
@@ -346,9 +359,16 @@ void pgResetFn_osdConfig(osdConfig_t *osdConfig)
 
 void pgResetFn_osdElementConfig(osdElementConfig_t *osdElementConfig)
 {
+    osdDisplayPortDevice_e device = osdConfig()->displayPortDevice;
+    
     // Position elements near centre of screen and disabled by default
     for (int i = 0; i < OSD_ITEM_COUNT; i++) {
+      if (device == OSD_DISPLAYPORT_DEVICE_TMGOSD) {
+        osdElementConfig->item_pos[i] = OSD_POS(15, 10);
+      }
+      else {
         osdElementConfig->item_pos[i] = OSD_POS(10, 7);
+      }
     }
 
     // Always enable warnings elements by default
@@ -356,13 +376,26 @@ void pgResetFn_osdElementConfig(osdElementConfig_t *osdElementConfig)
     for (unsigned i = 1; i <= OSD_PROFILE_COUNT; i++) {
         profileFlags |= OSD_PROFILE_FLAG(i);
     }
-    osdElementConfig->item_pos[OSD_WARNINGS] = OSD_POS(9, 10) | profileFlags;
+    if (device == OSD_DISPLAYPORT_DEVICE_TMGOSD) {
+      osdElementConfig->item_pos[OSD_WARNINGS] = OSD_POS(13, 13) | profileFlags;
+    }
+    else {
+      osdElementConfig->item_pos[OSD_WARNINGS] = OSD_POS(9, 10) | profileFlags;
+    }
 
     // Default to old fixed positions for these elements
-    osdElementConfig->item_pos[OSD_CROSSHAIRS]         = OSD_POS(13, 6);
-    osdElementConfig->item_pos[OSD_ARTIFICIAL_HORIZON] = OSD_POS(14, 2);
-    osdElementConfig->item_pos[OSD_HORIZON_SIDEBARS]   = OSD_POS(14, 6);
-    osdElementConfig->item_pos[OSD_CAMERA_FRAME]       = OSD_POS(3, 1);
+    if (device == OSD_DISPLAYPORT_DEVICE_TMGOSD) {
+      osdElementConfig->item_pos[OSD_CROSSHAIRS]         = OSD_POS(20, 8);
+      osdElementConfig->item_pos[OSD_ARTIFICIAL_HORIZON] = OSD_POS(21, 3);
+      osdElementConfig->item_pos[OSD_HORIZON_SIDEBARS]   = OSD_POS(21, 8);
+      osdElementConfig->item_pos[OSD_CAMERA_FRAME]       = OSD_POS(5, 1);
+    }
+    else {
+      osdElementConfig->item_pos[OSD_CROSSHAIRS]         = OSD_POS(13, 6);
+      osdElementConfig->item_pos[OSD_ARTIFICIAL_HORIZON] = OSD_POS(14, 2);
+      osdElementConfig->item_pos[OSD_HORIZON_SIDEBARS]   = OSD_POS(14, 6);
+      osdElementConfig->item_pos[OSD_CAMERA_FRAME]       = OSD_POS(3, 1);
+    }
 }
 
 static void osdDrawLogo(int x, int y)
@@ -1008,8 +1041,10 @@ void osdUpdate(timeUs_t currentTimeUs)
         showVisualBeeper = true;
     }
 
-#ifdef MAX7456_DMA_CHANNEL_TX
-    // don't touch buffers if DMA transaction is in progress
+//#ifdef MAX7456_DMA_CHANNEL_TX
+#if defined(MAX7456_DMA_CHANNEL_TX) || defined(USE_TMGOSD)
+    // don't touch buffers if DMA transaction is in progress or while
+    // TMGOSD is transmitting
     if (displayIsTransferInProgress(osdDisplayPort)) {
         return;
     }

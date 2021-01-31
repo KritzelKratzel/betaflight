@@ -32,7 +32,11 @@
 #define OSD_NUM_TIMER_TYPES 4
 extern const char * const osdTimerSourceNames[OSD_NUM_TIMER_TYPES];
 
+#ifdef USE_TMGOSD
+#define OSD_ELEMENT_BUFFER_LENGTH 64
+#else
 #define OSD_ELEMENT_BUFFER_LENGTH 32
+#endif
 
 #define OSD_PROFILE_NAME_LENGTH 16
 
@@ -45,9 +49,17 @@ extern const char * const osdTimerSourceNames[OSD_NUM_TIMER_TYPES];
 #define OSD_RCCHANNELS_COUNT 4
 
 #define OSD_CAMERA_FRAME_MIN_WIDTH  2
+#ifdef USE_TMGOSD
+#define OSD_CAMERA_FRAME_MAX_WIDTH  45    // Characters per row supportes by TMGOSD
+#else
 #define OSD_CAMERA_FRAME_MAX_WIDTH  30    // Characters per row supportes by MAX7456
+#endif
 #define OSD_CAMERA_FRAME_MIN_HEIGHT 2
+#ifdef USE_TMGOSD
+#define OSD_CAMERA_FRAME_MAX_HEIGHT 20    // Rows supported by TMGOSD
+#else
 #define OSD_CAMERA_FRAME_MAX_HEIGHT 16    // Rows supported by MAX7456 (PAL)
+#endif
 
 #define OSD_TASK_FREQUENCY_MIN 30
 #define OSD_TASK_FREQUENCY_MAX 300
@@ -55,8 +67,13 @@ extern const char * const osdTimerSourceNames[OSD_NUM_TIMER_TYPES];
 
 #define OSD_PROFILE_BITS_POS 11
 #define OSD_PROFILE_MASK    (((1 << OSD_PROFILE_COUNT) - 1) << OSD_PROFILE_BITS_POS)
+#ifdef USE_TMGOSD
+#define OSD_POS_MAX   0x7FF
+#define OSD_POSCFG_MAX   (OSD_PROFILE_MASK | 0x7FF) // For CLI values
+#else
 #define OSD_POS_MAX   0x3FF
 #define OSD_POSCFG_MAX   (OSD_PROFILE_MASK | 0x3FF) // For CLI values
+#endif
 #define OSD_PROFILE_FLAG(x)  (1 << ((x) - 1 + OSD_PROFILE_BITS_POS))
 #define OSD_PROFILE_1_FLAG  OSD_PROFILE_FLAG(1)
 
@@ -69,12 +86,40 @@ extern const char * const osdTimerSourceNames[OSD_NUM_TIMER_TYPES];
 #define VISIBLE_IN_OSD_PROFILE(item, profile) VISIBLE(item)
 #endif
 
+// MAX7456 OSD (PAL)
+//    720x576 with 12x18 dots per character, each dot over two adjoining pixels and corresponding even/odd frame line
+//    720 / 2 / 12 = 30 ... max 30 OSD characters in x-direction
+//    576 / 2 / 18 = 16 ... max 16 OSD characters in y-direction (with PAL resolution, even less with NTSC)
+//       5 bits for x-coordiante and 5 bits for y coordiante required
 
-// Character coordinate
-#define OSD_POSITION_BITS 5 // 5 bits gives a range 0-31
-#define OSD_POSITION_XY_MASK ((1 << OSD_POSITION_BITS) - 1)
-#define OSD_POS(x,y)  ((x & OSD_POSITION_XY_MASK) | ((y & OSD_POSITION_XY_MASK) << OSD_POSITION_BITS))
-#define OSD_X(x)      (x & OSD_POSITION_XY_MASK)
+// TMGOSD (720p)
+//    1280x720 with 12x18 dots per character, each dot over two adjoining pixels and lines
+//    1280 / 2 / 12 = 53 ... max 53 OSD characters in x-direction
+//    720  / 2 / 18 = 20 ... max 20 OSD characters in y-direction
+//       6 bits for x-coordiante and 5 bits for y coordiante required
+//       -> One bit more necessary for TMGOSD <-
+
+// Character coordinates are saved into configuraion memory like this:
+// +----+----+----+----+
+// |--zz|z-yy|yyyx|xxxx|
+// +----+----+----+----+
+//    ^^ ^^^     ^
+//    || |||     |
+//    || |||     +------: 5 bit address for x-coordiante (counted from left to right)
+//    || ||+------------: 5 bit address for y-coordinate (counted from top to bottom)
+//    || |+-------------: !!! Bit 10 unused so far, use it here as 6th bit for x-coordinate !!!
+//    || +--------------: OSD profile 1 flag
+//    |+----------------: OSD profile 2 flag
+//    +-----------------: OSD profile 3 flag
+//                      : Bits 14 and 15 reserved for future use.
+//                        https://betaflightgroup.slack.com/archives/C221J1H54/p1611691287121100
+#define OSD_POSITION_BITS 5 // 5 bits gives a range 0-31, enough for MAX7456 but not for TMGOSD
+#define OSD_POSITION_XY_MASK ((1 << OSD_POSITION_BITS) - 1)      // 0000_0000_0001_1111
+#define OSD_POSITION_X_EXTRABIT_MASK (1 << OSD_POSITION_BITS)    // 0000_0000_0010_0000
+// for write access
+#define OSD_POS(x,y)  (((x & OSD_POSITION_XY_MASK) | ((x & OSD_POSITION_X_EXTRABIT_MASK) << OSD_POSITION_BITS)) | ((y & OSD_POSITION_XY_MASK) << OSD_POSITION_BITS)) 
+// for read access
+#define OSD_X(x)      ((x & OSD_POSITION_XY_MASK) | ((x & (OSD_POSITION_X_EXTRABIT_MASK << OSD_POSITION_BITS)) >> OSD_POSITION_BITS))
 #define OSD_Y(x)      ((x >> OSD_POSITION_BITS) & OSD_POSITION_XY_MASK)
 
 // Timer configuration
@@ -84,7 +129,7 @@ extern const char * const osdTimerSourceNames[OSD_NUM_TIMER_TYPES];
 #define OSD_TIMER_PRECISION(timer)  ((timer >> 4) & 0x0F)
 #define OSD_TIMER_ALARM(timer)      ((timer >> 8) & 0xFF)
 
-#ifdef USE_MAX7456
+#if defined(USE_MAX7456) || defined(USE_TMGOSD)
 #define OSD_DRAW_FREQ_DENOM 5
 #else
 // MWOSD @ 115200 baud

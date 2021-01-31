@@ -26,6 +26,72 @@
 #include "io/serial.h"
 
 
+static uint16_t calculatePosition(const uint8_t x, const uint8_t y)
+{
+  // rescale 4:3 to 16:9 aspect ratio
+  uint16_t xx = 3*x/2; // 45 / 30 = 1.5
+  uint16_t yy = 5*y/4; // 20 / 16 = 1.25
+  return (TMG_OSD_NUM_XCHARS*yy + xx);
+}
+
+void tmgOsdWriteChar(void *device, uint8_t x, uint8_t y, const char c)
+{
+  // calculate position from x,y coordinates
+  uint16_t startPosition=calculatePosition(x, y);
+
+  // send header, data telegram
+  serialPrint(device, "$AD");
+
+  // send msglen; must include uint16_t for character start position
+  uint16_t msglen=sizeof(c) + sizeof(startPosition);
+  serialWrite(device, (uint8_t) msglen); // low byte
+  serialWrite(device, (msglen >> 8));    // high byte
+
+  // send startPosition, chkSum calculation starts from here
+  uint8_t chkSum = (uint8_t) startPosition;
+  serialWrite(device, (uint8_t) startPosition);
+  chkSum ^= (startPosition >> 8);
+  serialWrite(device, (startPosition >> 8));
+
+  // send character
+  chkSum ^= c;
+  serialWrite(device, c);
+
+  // send chkSum
+  serialWrite(device, chkSum);
+}
+
+void tmgOsdWriteString(void *device, uint8_t x, uint8_t y, const char *s)
+{
+  if (strlen(s) == 0) return;
+
+  // calculate position from x,y coordinates
+  uint16_t startPosition=calculatePosition(x, y);
+
+  // send header, data telegram
+  serialPrint(device, "$AD");
+
+  // send msglen; must include uint16_t for character start position
+  uint16_t msglen=strlen(s) + sizeof(startPosition);
+  serialWrite(device, (uint8_t) msglen); // low byte
+  serialWrite(device, (msglen >> 8));    // high byte
+
+  // send startPosition, chkSum calculation starts from here
+  uint8_t chkSum = (uint8_t) startPosition;
+  serialWrite(device, (uint8_t) startPosition);
+  chkSum ^= (startPosition >> 8);
+  serialWrite(device, (startPosition >> 8));
+
+  // send string
+  for (uint8_t i=0; i<strlen(s); i++){
+    chkSum ^= s[i];
+    serialWrite(device, s[i]);
+  }
+  
+  // send chkSum
+  serialWrite(device, chkSum);
+}
+
 void tmgOsdClearScreen(void *device)
 {
   // header, configuration telegram
@@ -38,12 +104,12 @@ void tmgOsdClearScreen(void *device)
   
   // serial payload starts here
   // command
-  uint8_t crc = CMD_CLR_SCREEN;
+  uint8_t chkSum = CMD_CLR_SCREEN;
   serialWrite(device, CMD_CLR_SCREEN);
   // serial payload ends here
 
-  // crc
-  serialWrite(device, crc);  
+  // chkSum
+  serialWrite(device, chkSum);  
 }
 
 #endif

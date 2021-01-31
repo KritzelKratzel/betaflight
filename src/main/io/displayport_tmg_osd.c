@@ -50,58 +50,41 @@ static int release(displayPort_t *displayPort)
 
 static int clearScreen(displayPort_t *displayPort)
 {
-  // UNUSED(displayPort);
   tmgOsdClearScreen(displayPort->device); 
   return 0;
 }
 
 static int drawScreen(displayPort_t *displayPort)
 {
+  // Currently not supported by TMGOSD
   UNUSED(displayPort);
-  // FIXME
-  // frskyOsdUpdate();
   return 0;
 }
 
 static int screenSize(const displayPort_t *displayPort)
 {
-  UNUSED(displayPort);
-  // FIXME
-  // return frskyOsdGetGridRows() * frskyOsdGetGridCols();
-  return 900;
+  return displayPort->rows * displayPort->cols;
 }
 
 static int writeString(displayPort_t *displayPort, uint8_t x, uint8_t y,
 		       uint8_t attr, const char *s)
 {
-  UNUSED(displayPort);
   UNUSED(attr);
-  // FIXME
-  UNUSED(x);
-  UNUSED(y);
-  UNUSED(s);
-  // frskyOsdDrawStringInGrid(x, y, s);
+  tmgOsdWriteString(displayPort->device, x, y, s);
   return 0;
 }
 
 static int writeChar(displayPort_t *displayPort, uint8_t x, uint8_t y,
 		     uint8_t attr, uint8_t c)
 {
-  UNUSED(displayPort);
   UNUSED(attr);
-  // FIXME
-  UNUSED(x);
-  UNUSED(y);
-  UNUSED(c);
-  // frskyOsdDrawCharInGrid(x, y, c);
+  tmgOsdWriteChar(displayPort->device, x, y, c);
   return 0;
 }
 
 static bool isTransferInProgress(const displayPort_t *displayPort)
 {
-  // Currently unused within TMGOSD
-  UNUSED(displayPort);
-  return false;
+  return !isSerialTransmitBufferEmpty(displayPort->device);
 }
 
 static int heartbeat(displayPort_t *displayPort)
@@ -170,15 +153,10 @@ static bool writeFontCharacter(displayPort_t *displayPort, uint16_t addr,
 
 static bool checkReady(displayPort_t *instance, bool rescan)
 {
+  // always ready
   UNUSED(rescan);
-  // FIXME
-  /* if (frskyOsdIsReady()) { */
-  /*   updateGridSize(instance); */
-  /*   return true; */
-  /* } */
-  /* return false; */
-  UNUSED(instance); // preliminary
-  return true; // preliminary
+  UNUSED(instance);
+  return true;
 }
 
 // displayPortVTable_t declared in src/main/drivers/display.h
@@ -226,6 +204,11 @@ displayPort_t *tmgOsdDisplayPortInit(void)
     }
   }
   return NULL;
+}
+
+bool tmgOsdDisplayPortIsNotDetected(void)
+{
+  return (tmgOsdDisplayPort.device == NULL);
 }
 
 #endif // USE_TMGOSD
