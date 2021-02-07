@@ -391,7 +391,11 @@ static int cmsDrawMenuItemValue(displayPort_t *pDisplay, char *buff, uint8_t row
 static int cmsDrawMenuEntry(displayPort_t *pDisplay, const OSD_Entry *p, uint8_t row, bool selectedRow, uint8_t *flags, cmsTableTicker_t *ticker)
 {
     #define CMS_DRAW_BUFFER_LEN 12
+#ifdef USE_TMGOSD
+    uint8_t CMS_TABLE_VALUE_MAX_LEN = pDisplay->cols;
+#else
     #define CMS_TABLE_VALUE_MAX_LEN 30
+#endif
     #define CMS_NUM_FIELD_LEN 5
     #define CMS_CURSOR_BLINK_DELAY_MS 500
 
@@ -953,6 +957,12 @@ const void *cmsMenuExit(displayPort_t *pDisplay, const void *ptr)
 
         systemReset();
     }
+#ifdef USE_TMGOSD
+    else if (exitType == CMS_EXIT) {
+        // clear display upon exit without save for TMGOSD
+        displayClearScreen(pDisplay);
+    }
+#endif
 
     unsetArmingDisabled(ARMING_DISABLED_CMS_MENU);
 

@@ -70,7 +70,7 @@ static int writeString(displayPort_t *displayPort, uint8_t x, uint8_t y,
 		       uint8_t attr, const char *s)
 {
   UNUSED(attr);
-  tmgOsdWriteString(displayPort->device, x, y, s);
+  tmgOsdWriteString(displayPort->device, displayPort->grabCount, x, y, s);
   return 0;
 }
 
@@ -78,7 +78,7 @@ static int writeChar(displayPort_t *displayPort, uint8_t x, uint8_t y,
 		     uint8_t attr, uint8_t c)
 {
   UNUSED(attr);
-  tmgOsdWriteChar(displayPort->device, x, y, c);
+  tmgOsdWriteChar(displayPort->device, displayPort->grabCount, x, y, c);
   return 0;
 }
 
@@ -96,9 +96,8 @@ static int heartbeat(displayPort_t *displayPort)
 
 static void redraw(displayPort_t *displayPort)
 {
-    UNUSED(displayPort);
-    // FIXME
-    // frskyOsdUpdate();
+  // Currently unused within TMGOSD
+  UNUSED(displayPort);
 }
 
 static bool isSynced(const displayPort_t *displayPort)

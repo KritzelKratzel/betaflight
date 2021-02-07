@@ -121,6 +121,10 @@ extern const char * const osdTimerSourceNames[OSD_NUM_TIMER_TYPES];
 // for read access
 #define OSD_X(x)      ((x & OSD_POSITION_XY_MASK) | ((x & (OSD_POSITION_X_EXTRABIT_MASK << OSD_POSITION_BITS)) >> OSD_POSITION_BITS))
 #define OSD_Y(x)      ((x >> OSD_POSITION_BITS) & OSD_POSITION_XY_MASK)
+// TMGOSD-notice: Although the preceeding macros are prepared for 6-bit wide x-coordinates, this feature
+// is practiacyll not used due to compatibility with betaflight-configurator. Instead all user-defined
+// character positions defined within configurator are scaled from 4:3 PAL display to 16:9 720p display
+// by simple operations. See src/main/io/tmg_osd.c:calculatePosition() for details.
 
 // Timer configuration
 // Stored as 15[alarm:8][precision:4][source:4]0

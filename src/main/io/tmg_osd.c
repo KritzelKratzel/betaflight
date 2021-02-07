@@ -26,18 +26,27 @@
 #include "io/serial.h"
 
 
-static uint16_t calculatePosition(const uint8_t x, const uint8_t y)
+static uint16_t calculatePosition(const int8_t grabCount, const uint8_t x, const uint8_t y)
 {
-  // rescale 4:3 to 16:9 aspect ratio
-  uint16_t xx = 3*x/2; // 45 / 30 = 1.5
-  uint16_t yy = 5*y/4; // 20 / 16 = 1.25
+  uint16_t xx, yy;
+  if (grabCount == 0) {
+    // Use automatic character position rescaling while in OSD-mode
+    // rescale 4:3 to 16:9 aspect ratio
+    xx = 3*x/2; // 45 / 30 = 1.5
+    yy = 5*y/4; // 20 / 16 = 1.25
+  }
+  else {
+    // Use original character position while in CMS-mode
+    xx = x;
+    yy = y;
+  }
   return (TMG_OSD_NUM_XCHARS*yy + xx);
 }
 
-void tmgOsdWriteChar(void *device, uint8_t x, uint8_t y, const char c)
+void tmgOsdWriteChar(void *device, int8_t grabCount, uint8_t x, uint8_t y, const char c)
 {
   // calculate position from x,y coordinates
-  uint16_t startPosition=calculatePosition(x, y);
+  uint16_t startPosition=calculatePosition(grabCount, x, y);
 
   // send header, data telegram
   serialPrint(device, "$AD");
@@ -61,12 +70,12 @@ void tmgOsdWriteChar(void *device, uint8_t x, uint8_t y, const char c)
   serialWrite(device, chkSum);
 }
 
-void tmgOsdWriteString(void *device, uint8_t x, uint8_t y, const char *s)
+void tmgOsdWriteString(void *device, int8_t grabCount, uint8_t x, uint8_t y, const char *s)
 {
   if (strlen(s) == 0) return;
 
   // calculate position from x,y coordinates
-  uint16_t startPosition=calculatePosition(x, y);
+  uint16_t startPosition=calculatePosition(grabCount, x, y);
 
   // send header, data telegram
   serialPrint(device, "$AD");
@@ -109,7 +118,7 @@ void tmgOsdClearScreen(void *device)
   // serial payload ends here
 
   // chkSum
-  serialWrite(device, chkSum);  
+  serialWrite(device, chkSum);
 }
 
 #endif

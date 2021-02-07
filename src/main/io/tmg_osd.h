@@ -37,6 +37,6 @@
 
 
 void tmgOsdClearScreen(void *device);
-void tmgOsdWriteChar(void *device, uint8_t x, uint8_t y, const char c);
-void tmgOsdWriteString(void *device, uint8_t x, uint8_t y, const char *s);
+void tmgOsdWriteChar(void *device, int8_t grabCount, uint8_t x, uint8_t y, const char c);
+void tmgOsdWriteString(void *device, int8_t grabCount, uint8_t x, uint8_t y, const char *s);
 
