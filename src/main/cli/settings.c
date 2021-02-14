@@ -123,7 +123,6 @@
 #include "telemetry/frsky_hub.h"
 #include "telemetry/ibus_shared.h"
 #include "telemetry/telemetry.h"
-#include "telemetry/nc3d.h"
 
 #include "settings.h"
 
@@ -1476,6 +1475,9 @@ const clivalue_t valueTable[] = {
     { "osd_camera_frame_height",    VAR_UINT8  | MASTER_VALUE, .config.minmaxUnsigned = { OSD_CAMERA_FRAME_MIN_HEIGHT, OSD_CAMERA_FRAME_MAX_HEIGHT }, PG_OSD_CONFIG, offsetof(osdConfig_t, camera_frame_height) },
     { "osd_task_frequency",         VAR_UINT16 | MASTER_VALUE, .config.minmaxUnsigned = { OSD_TASK_FREQUENCY_MIN, OSD_TASK_FREQUENCY_MAX }, PG_OSD_CONFIG, offsetof(osdConfig_t, task_frequency) },
     { "osd_menu_background",        VAR_UINT8  | MASTER_VALUE | MODE_LOOKUP, .config.lookup = { TABLE_CMS_BACKGROUND }, PG_OSD_CONFIG, offsetof(osdConfig_t, cms_background_type) },
+#ifdef USE_TMGOSD
+    { "osd_3d_convergence",         VAR_INT8   | MASTER_VALUE, .config.minmax = { -50, 50 }, PG_OSD_CONFIG, offsetof(osdConfig_t, osd3dConvergence) },    
+#endif
 #endif // end of #ifdef USE_OSD
 
 // PG_SYSTEM_CONFIG
@@ -1700,11 +1702,6 @@ const clivalue_t valueTable[] = {
     { "box_user_2_name", VAR_UINT8 | HARDWARE_VALUE | MODE_STRING, .config.string = { 1, MAX_BOX_USER_NAME_LENGTH, STRING_FLAGS_NONE }, PG_MODE_ACTIVATION_CONFIG, offsetof(modeActivationConfig_t, box_user_2_name) },
     { "box_user_3_name", VAR_UINT8 | HARDWARE_VALUE | MODE_STRING, .config.string = { 1, MAX_BOX_USER_NAME_LENGTH, STRING_FLAGS_NONE }, PG_MODE_ACTIVATION_CONFIG, offsetof(modeActivationConfig_t, box_user_3_name) },
     { "box_user_4_name", VAR_UINT8 | HARDWARE_VALUE | MODE_STRING, .config.string = { 1, MAX_BOX_USER_NAME_LENGTH, STRING_FLAGS_NONE }, PG_MODE_ACTIVATION_CONFIG, offsetof(modeActivationConfig_t, box_user_4_name) },
-#endif
-
-// PG_CAM3D_CONFIG
-#if defined(USE_TELEMETRY_NC3D)
-    { "cam3d_convergence",          VAR_UINT8   | MASTER_VALUE, .config.minmaxUnsigned = { 0, 100 }, PG_CAM3D_CONFIG, offsetof(cam3dProfile_t, convergence) },    
 #endif
 };
 

@@ -958,8 +958,8 @@ const void *cmsMenuExit(displayPort_t *pDisplay, const void *ptr)
         systemReset();
     }
 #ifdef USE_TMGOSD
-    else if (exitType == CMS_EXIT) {
-        // clear display upon exit without save for TMGOSD
+    else if (exitType == CMS_EXIT || exitType == CMS_EXIT_SAVE) {
+        // clear display upon exit without reboot for TMGOSD
         displayClearScreen(pDisplay);
     }
 #endif

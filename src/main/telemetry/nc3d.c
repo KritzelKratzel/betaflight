@@ -227,15 +227,6 @@
 #include "telemetry/telemetry.h"
 #include "telemetry/nc3d.h"
 
-// Parameter Group Registration Stuff
-PG_REGISTER_WITH_RESET_TEMPLATE(cam3dProfile_t, cam3dProfile, PG_CAM3D_CONFIG,        0);
-PG_RESET_TEMPLATE(cam3dProfile_t, cam3dProfile,
-		  .convergence = 55, // default convergence value
-);
-
-// Global, read/writable cam3dProfile object, initialized in initNc3dTelemetry()
-cam3dProfile_t *currentCam3dProfile;
-
 // OSD elements currently defined with static positions
 /* #define OSD3D_MAIN_BATT_VOLTAGE_POSITION  0 */
 /* #define OSD3D_ARMED_CLOCK_POSITION       13 */
@@ -468,8 +459,10 @@ static void setupDeviceConvergence(void){
   // command
   serialWrite(nc3dPort, CMD_SET_CONVERGENCE);
   uint8_t crc = CMD_SET_CONVERGENCE;
-  serialWrite(nc3dPort, currentCam3dProfile->convergence);
-  crc ^= currentCam3dProfile->convergence;
+  // serialWrite(nc3dPort, currentCam3dProfile->convergence);
+  serialWrite(nc3dPort, 55);
+  // crc ^= currentCam3dProfile->convergence;
+  crc ^= 55;
   // serial payload ends here
   
   // crc
@@ -633,7 +626,7 @@ void initNc3dTelemetry(void)
   //         type
   //
   // Therefore copy by member. However, I'm not really happy with that.
-  currentCam3dProfile->convergence = cam3dProfile()->convergence;
+  /* currentCam3dProfile->convergence = cam3dProfile()->convergence; */
 
   portConfig = findSerialPortConfig(FUNCTION_TELEMETRY_NC3D);
   nc3dPortSharing = determinePortSharing(portConfig, FUNCTION_TELEMETRY_NC3D);

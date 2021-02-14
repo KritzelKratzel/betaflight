@@ -20,11 +20,15 @@
 
 #include "platform.h"
 
-#if defined(USE_TMGOSD)
+#ifdef USE_TMGOSD
 
+#include "osd/osd.h"
 #include "io/tmg_osd.h"
 #include "io/serial.h"
 
+// see config/config.c: currentPidProfile
+// tmgOsdProfile_t *currentTmgOsdProfile;
+int8_t tmgOsdCurrent3dConvergence = 0;
 
 static uint16_t calculatePosition(const int8_t grabCount, const uint8_t x, const uint8_t y)
 {
@@ -121,4 +125,33 @@ void tmgOsdClearScreen(void *device)
   serialWrite(device, chkSum);
 }
 
+void tmgOsdSet3dConvergence(void *device)
+{
+  static uint8_t lastConv = 255;
+  // Get current convergence value from config and recompute for camera value range
+  uint8_t currentConv = 50 + (uint8_t)osdConfig()->osd3dConvergence;
+  if (lastConv == currentConv) return; // nothing to do
+
+  // update for next cycle
+  lastConv = currentConv;
+  
+  // header, configuration telegram
+  serialPrint(device, "$AC");
+
+  // msglen
+  const uint16_t msglen=2; // payload only two bytes
+  serialWrite(device, (uint8_t) msglen); // lower byte
+  serialWrite(device, (msglen >> 8)); // higher byte
+
+  // serial payload starts here
+  // command
+  serialWrite(device, CMD_SET_CONVERGENCE); // first byte: command
+  uint8_t chkSum = CMD_SET_CONVERGENCE;
+  serialWrite(device, currentConv); // second byte: argument
+  chkSum ^= currentConv;
+  // serial payload ends here
+  
+  // chkSum
+  serialWrite(device, chkSum);
+}
 #endif

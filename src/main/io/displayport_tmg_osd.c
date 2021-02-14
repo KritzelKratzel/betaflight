@@ -89,8 +89,8 @@ static bool isTransferInProgress(const displayPort_t *displayPort)
 
 static int heartbeat(displayPort_t *displayPort)
 {
-  // Currently unused within TMGOSD
-  UNUSED(displayPort);
+  // periodically called by osdRefresh() and cmsUpdate()
+  tmgOsdSet3dConvergence(displayPort->device); 
   return 0;
 }
 

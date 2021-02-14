@@ -39,12 +39,3 @@ typedef enum {
   OSD3D_RSSI_VALUE,
   OSD3D_TMP
 } osdItems_e;
-
-typedef struct cam3dProfile_s {
-  // Update initNc3dTelemetry() when adding members here.
-  uint8_t convergence;
-} cam3dProfile_t;
-
-PG_DECLARE(cam3dProfile_t, cam3dProfile);
-
-extern cam3dProfile_t *currentCam3dProfile;

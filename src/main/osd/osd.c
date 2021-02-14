@@ -151,6 +151,14 @@ STATIC_ASSERT(OSD_POS_MAX == OSD_POS(31,31), OSD_POS_MAX_incorrect);
 #endif
 
 PG_REGISTER_WITH_RESET_FN(osdConfig_t, osdConfig, PG_OSD_CONFIG, 9);
+/* #ifdef USE_TMGOSD */
+/* PG_REGISTER_WITH_RESET_TEMPLATE(osdConfig_t, osdConfig, PG_OSD_CONFIG, 9); */
+/* PG_RESET_TEMPLATE(osdConfig_t, osdConfig, */
+/* 		  .osd3dConvergence = 55, // default convergence value */
+/* ); */
+/* #else */
+/* PG_REGISTER_WITH_RESET_FN(osdConfig_t, osdConfig, PG_OSD_CONFIG, 9); */
+/* #endif */
 
 PG_REGISTER_WITH_RESET_FN(osdElementConfig_t, osdElementConfig, PG_OSD_ELEMENT_CONFIG, 0);
 
@@ -401,6 +409,11 @@ void pgResetFn_osdElementConfig(osdElementConfig_t *osdElementConfig)
 static void osdDrawLogo(int x, int y)
 {
     // display logo and help
+#ifdef USE_TMGOSD
+    // grab display to aid calculatePosition() in src/main/io/tmg_osd.c
+    // otherwise Betaflight logo is not displayed correctly
+    displayGrab(osdDisplayPort);
+#endif
     int fontOffset = 160;
     for (int row = 0; row < 4; row++) {
         for (int column = 0; column < 24; column++) {
@@ -408,6 +421,9 @@ static void osdDrawLogo(int x, int y)
                 displayWriteChar(osdDisplayPort, x + column, y + row, DISPLAYPORT_ATTR_NONE, fontOffset++);
         }
     }
+#ifdef USE_TMGOSD
+    displayRelease(osdDisplayPort);
+#endif
 }
 
 static void osdCompleteInitialization(void)

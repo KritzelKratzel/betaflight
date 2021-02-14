@@ -62,7 +62,12 @@ This is my log of creating a new but simple parameter group for my 3D-FPV-camera
 
    Append entry to `const clivalue_t valueTable`. The `VAR_UINT8`-declaration must match with corresponding `struct` member declaration in `cam3d.h`. Notice the enclosing `USE_TELEMETRY_NC3D` define environment. Don't forget to add `#include "pg/cam3d.h"`. 
 
-Further reading: https://betaflightgroup.slack.com/archives/C221J1H54/p1609886643265400
+it is easier to add new parameters to existing parameter groups. In this case simply add new parameters to the end of an existing group. Then the parameter group version does not have to be incremented. (https://github.com/betaflight/betaflight/blob/master/docs/development/ParameterGroups.md)
+
+Further reading: 
+
+- https://betaflightgroup.slack.com/archives/C221J1H54/p1609886643265400
+- https://betaflightgroup.slack.com/archives/C221J1H54/p1613304716381100
 
 ## Future Updates
 
@@ -336,6 +341,24 @@ upstream        https://github.com/betaflight/betaflight.git (push)
 1. `drivers/display.c`: Provides top-level functions used by OSD and CMS. Functions are the same for different kind of displays.
 2. `io/displayport_tmg_osd.c`: Defines display-specific `static const displayPortVTable_t tmgOsdVTable`, where each member is a pre-defined function pointer with standardized name. Those pointers point to hardware-specific implementation functions, which can be named arbitrarily. Furthermore provides interface to only one public function:  `tmgOsdDisplayPortInit()`.
 3. `io/tmg_osd.c`: Collects all hardware-specific implementation functions to all function pointers mentioned in level above.
+
+#### OSD / CMS Call Tree
+
+- Task scheduler (`src/main/fc/tasks.c`)
+  - osdUpdate(...)
+    - osdRefresh(...)
+      - osdDrawElements(...)
+        - osdDrawActiveElements(...)
+      - displayHeartbeat(...)
+  - cmsHandler(...)
+    - cmsUpdate(...)
+      - cmsDrawMenue(...)
+        - cmsDisplayWrite(...)
+        - cmsMenueBack(...)
+        - cmsDrawMenuEntry(...)
+      - displayHeatbeat(...)
+
+For TMGOSD the displayHeartbeat function is used to update 3D convergence setting of the camera.
 
 ### Implementation of TMGOSD based on FRSKYOSD with full Integration in Betaflight-CMS
 

@@ -152,9 +152,6 @@
 #define PG_MODE_ACTIVATION_CONFIG 553
 #define PG_BETAFLIGHT_END 553
 
-// 3D-FPV camera configuration
-#define PG_CAM3D_CONFIG 1023
-
 // OSD configuration (subject to change)
 #define PG_OSD_FONT_CONFIG 2047
 #define PG_OSD_VIDEO_CONFIG 2046
