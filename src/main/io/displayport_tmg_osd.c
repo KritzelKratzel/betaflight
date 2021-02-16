@@ -195,7 +195,7 @@ displayPort_t *tmgOsdDisplayPortInit(void)
 					portOptions);
     if (port) {
       tmgOsdDisplayPort.device = port;
-      displayInit(&tmgOsdDisplayPort, &tmgOsdVTable); // launches clearScreen()
+      displayInit(&tmgOsdDisplayPort, &tmgOsdVTable, DISPLAYPORT_DEVICE_TYPE_TMGOSD);
       tmgOsdDisplayPort.rows = TMG_OSD_NUM_YCHARS;
       tmgOsdDisplayPort.cols = TMG_OSD_NUM_XCHARS;
       tmgOsdDisplayPort.useDeviceBlink = false;

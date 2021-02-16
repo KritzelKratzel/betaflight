@@ -151,14 +151,6 @@ STATIC_ASSERT(OSD_POS_MAX == OSD_POS(31,31), OSD_POS_MAX_incorrect);
 #endif
 
 PG_REGISTER_WITH_RESET_FN(osdConfig_t, osdConfig, PG_OSD_CONFIG, 9);
-/* #ifdef USE_TMGOSD */
-/* PG_REGISTER_WITH_RESET_TEMPLATE(osdConfig_t, osdConfig, PG_OSD_CONFIG, 9); */
-/* PG_RESET_TEMPLATE(osdConfig_t, osdConfig, */
-/* 		  .osd3dConvergence = 55, // default convergence value */
-/* ); */
-/* #else */
-/* PG_REGISTER_WITH_RESET_FN(osdConfig_t, osdConfig, PG_OSD_CONFIG, 9); */
-/* #endif */
 
 PG_REGISTER_WITH_RESET_FN(osdElementConfig_t, osdElementConfig, PG_OSD_ELEMENT_CONFIG, 0);
 
@@ -367,16 +359,9 @@ void pgResetFn_osdConfig(osdConfig_t *osdConfig)
 
 void pgResetFn_osdElementConfig(osdElementConfig_t *osdElementConfig)
 {
-    osdDisplayPortDevice_e device = osdConfig()->displayPortDevice;
-    
     // Position elements near centre of screen and disabled by default
     for (int i = 0; i < OSD_ITEM_COUNT; i++) {
-      if (device == OSD_DISPLAYPORT_DEVICE_TMGOSD) {
-        osdElementConfig->item_pos[i] = OSD_POS(15, 10);
-      }
-      else {
         osdElementConfig->item_pos[i] = OSD_POS(10, 7);
-      }
     }
 
     // Always enable warnings elements by default
@@ -384,26 +369,14 @@ void pgResetFn_osdElementConfig(osdElementConfig_t *osdElementConfig)
     for (unsigned i = 1; i <= OSD_PROFILE_COUNT; i++) {
         profileFlags |= OSD_PROFILE_FLAG(i);
     }
-    if (device == OSD_DISPLAYPORT_DEVICE_TMGOSD) {
-      osdElementConfig->item_pos[OSD_WARNINGS] = OSD_POS(13, 13) | profileFlags;
-    }
-    else {
-      osdElementConfig->item_pos[OSD_WARNINGS] = OSD_POS(9, 10) | profileFlags;
-    }
+    osdElementConfig->item_pos[OSD_WARNINGS] = OSD_POS(9, 10) | profileFlags;
 
     // Default to old fixed positions for these elements
-    if (device == OSD_DISPLAYPORT_DEVICE_TMGOSD) {
-      osdElementConfig->item_pos[OSD_CROSSHAIRS]         = OSD_POS(20, 8);
-      osdElementConfig->item_pos[OSD_ARTIFICIAL_HORIZON] = OSD_POS(21, 3);
-      osdElementConfig->item_pos[OSD_HORIZON_SIDEBARS]   = OSD_POS(21, 8);
-      osdElementConfig->item_pos[OSD_CAMERA_FRAME]       = OSD_POS(5, 1);
-    }
-    else {
-      osdElementConfig->item_pos[OSD_CROSSHAIRS]         = OSD_POS(13, 6);
-      osdElementConfig->item_pos[OSD_ARTIFICIAL_HORIZON] = OSD_POS(14, 2);
-      osdElementConfig->item_pos[OSD_HORIZON_SIDEBARS]   = OSD_POS(14, 6);
-      osdElementConfig->item_pos[OSD_CAMERA_FRAME]       = OSD_POS(3, 1);
-    }
+    osdElementConfig->item_pos[OSD_CROSSHAIRS]         = OSD_POS(13, 6);
+    osdElementConfig->item_pos[OSD_ARTIFICIAL_HORIZON] = OSD_POS(14, 2);
+    osdElementConfig->item_pos[OSD_HORIZON_SIDEBARS]   = OSD_POS(14, 6);
+    osdElementConfig->item_pos[OSD_CAMERA_FRAME]       = OSD_POS(3, 1);
+    osdElementConfig->item_pos[OSD_UP_DOWN_REFERENCE]  = OSD_POS(13, 6);
 }
 
 static void osdDrawLogo(int x, int y)
