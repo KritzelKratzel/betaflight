@@ -118,13 +118,13 @@ extern const char * const osdTimerSourceNames[OSD_NUM_TIMER_TYPES];
 #define OSD_POSITION_BITS 5 // 5 bits gives a range 0-31, enough for MAX7456 but not for TMGOSD
 #define OSD_POSITION_XY_MASK ((1 << OSD_POSITION_BITS) - 1)      // 0000_0000_0001_1111
 #define OSD_POSITION_X_EXTRABIT_MASK (1 << OSD_POSITION_BITS)    // 0000_0000_0010_0000
-#define OSD_POSITION_TYPE_MASK 0xC000   // bits 14-15
+#define OSD_TYPE_MASK 0xC000   // bits 14-15
 // for write access
 #define OSD_POS(x,y)  (((x & OSD_POSITION_XY_MASK) | ((x & OSD_POSITION_X_EXTRABIT_MASK) << OSD_POSITION_BITS)) | ((y & OSD_POSITION_XY_MASK) << OSD_POSITION_BITS)) 
 // for read access
 #define OSD_X(x)      ((x & OSD_POSITION_XY_MASK) | ((x & (OSD_POSITION_X_EXTRABIT_MASK << OSD_POSITION_BITS)) >> OSD_POSITION_BITS))
 #define OSD_Y(x)      ((x >> OSD_POSITION_BITS) & OSD_POSITION_XY_MASK)
-#define OSD_TYPE(x)   ((x & OSD_POSITION_TYPE_MASK) >> 14)
+#define OSD_TYPE(x)   ((x & OSD_TYPE_MASK) >> 14)
 // TMGOSD-notice: Although the preceeding macros are prepared for 6-bit wide x-coordinates, this feature
 // is practically not used due to compatibility issues with betaflight-configurator. Instead all user-defined
 // character positions defined within configurator are scaled from 4:3 PAL display to 16:9 720p display
