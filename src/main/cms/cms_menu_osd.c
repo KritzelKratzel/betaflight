@@ -309,6 +309,10 @@ static uint8_t displayPortProfileMax7456_blackBrightness;
 static uint8_t displayPortProfileMax7456_whiteBrightness;
 #endif
 
+#ifdef USE_TMGOSD
+static int8_t displayPortProfileTmgOsd_3dConvergence;
+#endif
+
 #ifdef USE_OSD_PROFILES
 static uint8_t osdConfig_osdProfileIndex;
 #endif
@@ -330,6 +334,10 @@ static const void *cmsx_menuOsdOnEnter(displayPort_t *pDisp)
     osdMenuBackgroundType = osdConfig()->cms_background_type;
 #endif
 
+#ifdef USE_TMGOSD
+    displayPortProfileTmgOsd_3dConvergence = osdConfig()->osd3dConvergence;
+#endif
+    
     return NULL;
 }
 
@@ -360,6 +368,16 @@ static const void *cmsx_max7456Update(displayPort_t *pDisp, const void *self)
 }
 #endif // USE_MAX7456
 
+#ifdef USE_TMGOSD
+static const void *cmsx_tmgOsdUpdate(displayPort_t *pDisp, const void *self)
+{
+    UNUSED(self);
+    osdConfigMutable()->osd3dConvergence = displayPortProfileTmgOsd_3dConvergence;
+    displayClearScreen(pDisp);
+    return NULL;
+}
+#endif
+
 static const void *cmsx_osdBackgroundUpdate(displayPort_t *pDisp, const void *self)
 {
     UNUSED(self);
@@ -374,6 +392,9 @@ const OSD_Entry cmsx_menuOsdEntries[] =
 #ifdef USE_OSD_PROFILES
     {"OSD PROFILE", OME_UINT8, NULL, &(OSD_UINT8_t){&osdConfig_osdProfileIndex, 1, 3, 1}, 0},
 #endif
+#ifdef USE_TMGOSD
+    {"3D CONVERGENCE",OME_INT8, cmsx_tmgOsdUpdate, &(OSD_INT8_t){&displayPortProfileTmgOsd_3dConvergence, -50, 50, 1}, 0},
+#endif   
 #ifdef USE_EXTENDED_CMS_MENUS
     {"ACTIVE ELEM", OME_Submenu, cmsMenuChange, &menuOsdActiveElems, 0},
     {"TIMERS",      OME_Submenu, cmsMenuChange, &menuTimers,         0},
