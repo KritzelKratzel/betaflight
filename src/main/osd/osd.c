@@ -310,7 +310,7 @@ static void osdDrawElements(void)
         // Background layer not supported, just clear the foreground in preparation
         // for drawing the elements including their backgrounds.
 #ifdef USE_TMGOSD
-        if (tmgOsdDisplayPortIsNotDetected()) {
+        if (osdDisplayPort->deviceType /= DISPLAYPORT_DEVICE_TYPE_TMGOSD) {
 	  // TMGOSD does not require screen to be cleared in advance of call to
 	  // osdDrawActiveElements()
 	  displayClearScreen(osdDisplayPort);

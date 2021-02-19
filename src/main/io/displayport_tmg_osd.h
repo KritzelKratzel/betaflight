@@ -24,4 +24,3 @@
 #include "io/serial.h"
 
 displayPort_t *tmgOsdDisplayPortInit(void);
-bool tmgOsdDisplayPortIsNotDetected(void);

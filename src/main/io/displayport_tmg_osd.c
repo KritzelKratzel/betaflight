@@ -205,9 +205,4 @@ displayPort_t *tmgOsdDisplayPortInit(void)
   return NULL;
 }
 
-bool tmgOsdDisplayPortIsNotDetected(void)
-{
-  return (tmgOsdDisplayPort.device == NULL);
-}
-
 #endif // USE_TMGOSD
