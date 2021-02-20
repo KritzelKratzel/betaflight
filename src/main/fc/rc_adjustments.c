@@ -50,7 +50,6 @@
 #include "io/beeper.h"
 #include "io/ledstrip.h"
 #include "io/pidaudio.h"
-#include "io/tmg_osd.h"
 
 #include "osd/osd.h"
 
@@ -429,8 +428,8 @@ static int applyStepAdjustment(controlRateConfig_t *controlRateConfig, uint8_t a
         blackboxLogInflightAdjustmentEvent(ADJUSTMENT_FEEDFORWARD_TRANSITION, newValue);
         break;
     case ADJUSTMENT_OSD_CONVERGENCE:
-        newValue = constrain(tmgOsdCurrent3dConvergence + delta, -50, 50);
-        tmgOsdCurrent3dConvergence = (int8_t)newValue;
+        newValue = constrain(osdConfig()->osd3dConvergence + delta, -50, 50);
+	osdConfigMutable()->osd3dConvergence = (int8_t)newValue;
         blackboxLogInflightAdjustmentEvent(ADJUSTMENT_OSD_CONVERGENCE, newValue);
 	break;
     default:
@@ -594,12 +593,6 @@ static int applyAbsoluteAdjustment(controlRateConfig_t *controlRateConfig, adjus
         currentPidProfile->feedForwardTransition = newValue;
         blackboxLogInflightAdjustmentEvent(ADJUSTMENT_FEEDFORWARD_TRANSITION, newValue);
         break;
-    case ADJUSTMENT_OSD_CONVERGENCE:
-        // Currently hard-coded range of convergence offset -50 to 50 for PSCam3D
-        newValue = constrain(value, -50, 50);
-        tmgOsdCurrent3dConvergence = (int8_t)newValue;
-        blackboxLogInflightAdjustmentEvent(ADJUSTMENT_OSD_CONVERGENCE, newValue);
-	break;
     default:
         newValue = -1;
         break;

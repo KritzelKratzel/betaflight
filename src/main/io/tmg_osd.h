@@ -35,8 +35,6 @@
 #include <stdint.h>
 #include <string.h>
 
-extern int8_t tmgOsdCurrent3dConvergence;
-
 void tmgOsdClearScreen(void *device);
 void tmgOsdWriteChar(void *device, int8_t grabCount, uint8_t x, uint8_t y, const char c);
 void tmgOsdWriteString(void *device, int8_t grabCount, uint8_t x, uint8_t y, const char *s);

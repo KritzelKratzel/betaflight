@@ -83,8 +83,8 @@ Configure a range using:
 | -------- | ----- |-------- |
 | Index | 0 - 29 | Select the adjustment range to configure |
 | 0 | 0 | Used as slot before Betaflight 4.1 |
-| Range Channel | 0 based index, AUX1 = 0, AUX2 = 1 | The AUX channel to use to select an adjustment for a switch/pot | 
-| Range Start | 900 - 2100. Steps of 25, e.g. 900, 925, 950... | Start of range | 
+| Range Channel | 0 based index, AUX1 = 0, AUX2 = 1 | The AUX channel to use to select an adjustment for a switch/pot |
+| Range Start | 900 - 2100. Steps of 25, e.g. 900, 925, 950... | Start of range |
 | Range End | 900 - 2100 | End of range |
 | Adjustment function | | See [Adjustment functions table](#adjustment-functions) |
 | Adjustment channel | 0 based index, AUX1 = 0, AUX2 = 1 | The channel that is controlled by a 3 Position switch/Pot |
@@ -95,7 +95,7 @@ Range Start/End values should match the values sent by your receiver.
 
 The Range Channel and the Adjustment Channel can be the same channel.  This is useful when you want a single 3 Position switch to be dedicated
 to a single adjustment function regardless of other switch positions.
- 
+
 The adjustment function is applied to the adjustment channel when range channel is between the range values.
 The adjustment is made when the adjustment channel is in the high or low position.  high = mid\_rc + 200, low = mid\_rc - 200.  by default this is 1700 and 1300 respectively.
 
@@ -134,7 +134,7 @@ The adjustment is made when the adjustment channel is in the high or low positio
 | 28    | YAW\_F | Step / absolute setting |
 | 29    | OSD\_PROFILE | Switch between 3 OSD profiles |
 | 30    | LED\_PROFILE | Switch between the RACE / BEACON / STATUS LED strip profiles |
-| 31    | OSD\_CONVERGENCE | Step / absolute setting |
+| 31    | OSD\_CONVERGENCE | Step setting |
 
 ## Examples
 

@@ -26,10 +26,6 @@
 #include "io/tmg_osd.h"
 #include "io/serial.h"
 
-// see config/config.c: currentPidProfile
-// tmgOsdProfile_t *currentTmgOsdProfile;
-int8_t tmgOsdCurrent3dConvergence = 0;
-
 static uint16_t calculatePosition(const int8_t grabCount, const uint8_t x, const uint8_t y)
 {
   uint16_t xx, yy;
@@ -40,7 +36,8 @@ static uint16_t calculatePosition(const int8_t grabCount, const uint8_t x, const
     yy = 5*y/4; // 20 / 16 = 1.25
   }
   else {
-    // Use original character position while in CMS-mode
+    // Use original character position while in CMS-mode or during
+    // writing Betaflight logo graphics
     xx = x;
     yy = y;
   }
@@ -50,13 +47,13 @@ static uint16_t calculatePosition(const int8_t grabCount, const uint8_t x, const
 void tmgOsdWriteChar(void *device, int8_t grabCount, uint8_t x, uint8_t y, const char c)
 {
   // calculate position from x,y coordinates
-  uint16_t startPosition=calculatePosition(grabCount, x, y);
+  uint16_t startPosition = calculatePosition(grabCount, x, y);
 
   // send header, data telegram
   serialPrint(device, "$AD");
 
   // send msglen; must include uint16_t for character start position
-  uint16_t msglen=sizeof(c) + sizeof(startPosition);
+  uint16_t msglen = sizeof(c) + sizeof(startPosition);
   serialWrite(device, (uint8_t) msglen); // low byte
   serialWrite(device, (msglen >> 8));    // high byte
 
@@ -79,13 +76,13 @@ void tmgOsdWriteString(void *device, int8_t grabCount, uint8_t x, uint8_t y, con
   if (strlen(s) == 0) return;
 
   // calculate position from x,y coordinates
-  uint16_t startPosition=calculatePosition(grabCount, x, y);
+  uint16_t startPosition = calculatePosition(grabCount, x, y);
 
   // send header, data telegram
   serialPrint(device, "$AD");
 
   // send msglen; must include uint16_t for character start position
-  uint16_t msglen=strlen(s) + sizeof(startPosition);
+  uint16_t msglen = strlen(s) + sizeof(startPosition);
   serialWrite(device, (uint8_t) msglen); // low byte
   serialWrite(device, (msglen >> 8));    // high byte
 
@@ -127,19 +124,24 @@ void tmgOsdClearScreen(void *device)
 
 void tmgOsdSet3dConvergence(void *device)
 {
-  static uint8_t lastConv = 255;
-  // Get current convergence value from config and recompute for camera value range
-  uint8_t currentConv = 50 + (uint8_t)osdConfig()->osd3dConvergence;
-  if (lastConv == currentConv) return; // nothing to do
+  // This function is periodically called by osdRefresh() and cmsUpdate() via
+  // heartbeat(displayPort_t *displayPort).
+  
+  static int8_t lastConfigValue = 127; // init to unphysical value beyond -50 to +50
+
+  // Get current convergence value from config. This value may have been changed
+  // during usage of CMS->OSD menue.
+  int8_t currentConfigValue = osdConfig()->osd3dConvergence;
+  if (lastConfigValue == currentConfigValue) return; // nothing to do
 
   // update for next cycle
-  lastConv = currentConv;
+  lastConfigValue = currentConfigValue;
   
   // header, configuration telegram
   serialPrint(device, "$AC");
 
   // msglen
-  const uint16_t msglen=2; // payload only two bytes
+  const uint16_t msglen = 2; // payload only two bytes
   serialWrite(device, (uint8_t) msglen); // lower byte
   serialWrite(device, (msglen >> 8)); // higher byte
 
@@ -147,8 +149,9 @@ void tmgOsdSet3dConvergence(void *device)
   // command
   serialWrite(device, CMD_SET_CONVERGENCE); // first byte: command
   uint8_t chkSum = CMD_SET_CONVERGENCE;
-  serialWrite(device, currentConv); // second byte: argument
-  chkSum ^= currentConv;
+  uint8_t actualValue = 50 + (uint8_t)currentConfigValue; // camera range 0 ... 100
+  serialWrite(device, actualValue); // second byte: argument
+  chkSum ^= actualValue;
   // serial payload ends here
   
   // chkSum
