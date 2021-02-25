@@ -332,6 +332,7 @@
 #define USE_CANVAS
 #define USE_DASHBOARD
 #define USE_FRSKYOSD
+#define USE_TMGOSD
 #define USE_GPS
 #define USE_GPS_NMEA
 #define USE_GPS_UBLOX

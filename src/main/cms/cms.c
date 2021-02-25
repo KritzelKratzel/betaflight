@@ -872,6 +872,12 @@ const void *cmsMenuExit(displayPort_t *pDisplay, const void *ptr)
 
         systemReset();
     }
+#ifdef USE_TMGOSD
+    else {
+        // clear display upon other exit types
+        displayClearScreen(pDisplay);
+    }
+#endif
 
     unsetArmingDisabled(ARMING_DISABLED_CMS_MENU);
 

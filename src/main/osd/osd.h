@@ -31,7 +31,11 @@
 #define OSD_NUM_TIMER_TYPES 4
 extern const char * const osdTimerSourceNames[OSD_NUM_TIMER_TYPES];
 
+#ifdef USE_TMGOSD
+#define OSD_ELEMENT_BUFFER_LENGTH 64
+#else
 #define OSD_ELEMENT_BUFFER_LENGTH 32
+#endif
 
 #define OSD_PROFILE_NAME_LENGTH 16
 
@@ -44,9 +48,17 @@ extern const char * const osdTimerSourceNames[OSD_NUM_TIMER_TYPES];
 #define OSD_RCCHANNELS_COUNT 4
 
 #define OSD_CAMERA_FRAME_MIN_WIDTH  2
+#ifdef USE_TMGOSD
+#define OSD_CAMERA_FRAME_MAX_WIDTH  45    // Characters per row supportes by TMGOSD
+#else
 #define OSD_CAMERA_FRAME_MAX_WIDTH  30    // Characters per row supportes by MAX7456
+#endif
 #define OSD_CAMERA_FRAME_MIN_HEIGHT 2
+#ifdef USE_TMGOSD
+#define OSD_CAMERA_FRAME_MAX_HEIGHT 20    // Rows supported by TMGOSD
+#else
 #define OSD_CAMERA_FRAME_MAX_HEIGHT 16    // Rows supported by MAX7456 (PAL)
+#endif
 
 #define OSD_PROFILE_BITS_POS 11
 #define OSD_PROFILE_MASK    (((1 << OSD_PROFILE_COUNT) - 1) << OSD_PROFILE_BITS_POS)
@@ -242,6 +254,7 @@ typedef enum {
     OSD_DISPLAYPORT_DEVICE_MAX7456,
     OSD_DISPLAYPORT_DEVICE_MSP,
     OSD_DISPLAYPORT_DEVICE_FRSKYOSD,
+    OSD_DISPLAYPORT_DEVICE_TMGOSD,
 } osdDisplayPortDevice_e;
 
 // Make sure the number of warnings do not exceed the available 32bit storage
@@ -288,6 +301,7 @@ typedef struct osdConfig_s {
     uint8_t logo_on_arming_duration;          // display duration in 0.1s units
     uint8_t camera_frame_width;               // The width of the box for the camera frame element
     uint8_t camera_frame_height;              // The height of the box for the camera frame element
+    int8_t osd3dConvergence;                  // Stereoscopic convergence value for 3D-capable devices
 } osdConfig_t;
 
 PG_DECLARE(osdConfig_t, osdConfig);

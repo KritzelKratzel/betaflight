@@ -62,7 +62,7 @@ typedef enum {
     ADJUSTMENT_YAW_F,
     ADJUSTMENT_OSD_PROFILE,
     ADJUSTMENT_LED_PROFILE,             // Adjustment function #30: LED_PROFILE
-    ADJUSTMENT_3DCAM_CONVERGENCE,       // Adjustment function #31: my contribution
+    ADJUSTMENT_OSD_CONVERGENCE,         // Adjustment function #31: my contribution
     ADJUSTMENT_FUNCTION_COUNT
 } adjustmentFunction_e;
 

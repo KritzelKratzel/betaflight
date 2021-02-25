@@ -157,6 +157,7 @@ COMMON_SRC = \
             drivers/vtx_table.c \
             io/dashboard.c \
             io/displayport_frsky_osd.c \
+            io/displayport_tmg_osd.c \
             io/displayport_max7456.c \
             io/displayport_msp.c \
             io/displayport_oled.c \
@@ -164,6 +165,7 @@ COMMON_SRC = \
             io/displayport_crsf.c \
             io/displayport_hott.c \
             io/frsky_osd.c \
+            io/tmg_osd.c \
             io/rcdevice_cam.c \
             io/rcdevice.c \
             io/gps.c \

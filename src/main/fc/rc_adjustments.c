@@ -227,7 +227,7 @@ static const adjustmentConfig_t defaultAdjustmentConfigs[ADJUSTMENT_FUNCTION_COU
         .mode = ADJUSTMENT_MODE_SELECT,
         .data = { .switchPositions = 3 }
     }, {
-        .adjustmentFunction = ADJUSTMENT_3DCAM_CONVERGENCE,
+        .adjustmentFunction = ADJUSTMENT_OSD_CONVERGENCE,
         .mode = ADJUSTMENT_MODE_STEP,
         .data = { .step = 1 }
     }
@@ -429,10 +429,10 @@ static int applyStepAdjustment(controlRateConfig_t *controlRateConfig, uint8_t a
         currentPidProfile->feedForwardTransition = newValue;
         blackboxLogInflightAdjustmentEvent(ADJUSTMENT_FEEDFORWARD_TRANSITION, newValue);
         break;
-    case ADJUSTMENT_3DCAM_CONVERGENCE:
-        newValue = constrain(currentCam3dProfile->convergence + delta, 0, 100);
-        currentCam3dProfile->convergence = newValue;
-        blackboxLogInflightAdjustmentEvent(ADJUSTMENT_3DCAM_CONVERGENCE, newValue);
+    case ADJUSTMENT_OSD_CONVERGENCE:
+        newValue = constrain(osdConfig()->osd3dConvergence + delta, -50, 50);
+	osdConfigMutable()->osd3dConvergence = (int8_t)newValue;
+        blackboxLogInflightAdjustmentEvent(ADJUSTMENT_OSD_CONVERGENCE, newValue);
 	break;
     default:
         newValue = -1;
@@ -595,12 +595,6 @@ static int applyAbsoluteAdjustment(controlRateConfig_t *controlRateConfig, adjus
         currentPidProfile->feedForwardTransition = newValue;
         blackboxLogInflightAdjustmentEvent(ADJUSTMENT_FEEDFORWARD_TRANSITION, newValue);
         break;
-    case ADJUSTMENT_3DCAM_CONVERGENCE:
-        // Currently hard-coded range of convergence offset 0 to 100 for PSCam3D
-        newValue = constrain(value, 0, 100);
-        currentCam3dProfile->convergence = newValue;
-        blackboxLogInflightAdjustmentEvent(ADJUSTMENT_3DCAM_CONVERGENCE, newValue);
-	break;
     default:
         newValue = -1;
         break;

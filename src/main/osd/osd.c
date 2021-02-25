@@ -74,6 +74,7 @@
 #include "io/beeper.h"
 #include "io/flashfs.h"
 #include "io/gps.h"
+#include "io/displayport_tmg_osd.h"
 
 #include "osd/osd.h"
 #include "osd/osd_elements.h"
@@ -142,7 +143,11 @@ static bool backgroundLayerSupported = false;
 escSensorData_t *osdEscDataCombined;
 #endif
 
+#ifdef USE_TMGOSD
+STATIC_ASSERT(OSD_POS_MAX == OSD_POS(63,31), OSD_POS_MAX_incorrect);
+#else
 STATIC_ASSERT(OSD_POS_MAX == OSD_POS(31,31), OSD_POS_MAX_incorrect);
+#endif
 
 PG_REGISTER_WITH_RESET_FN(osdConfig_t, osdConfig, PG_OSD_CONFIG, 8);
 
@@ -264,7 +269,15 @@ static void osdDrawElements(timeUs_t currentTimeUs)
     } else {
         // Background layer not supported, just clear the foreground in preparation
         // for drawing the elements including their backgrounds.
+#ifdef USE_TMGOSD
+        if (tmgOsdDisplayPortIsNotDetected()) {
+	  // TMGOSD does not require screen to be cleared in advance of call to
+	  // osdDrawActiveElements()
+	  displayClearScreen(osdDisplayPort);
+	}
+#else
         displayClearScreen(osdDisplayPort);
+#endif      
     }
 
     osdDrawActiveElements(osdDisplayPort, currentTimeUs);
@@ -364,6 +377,11 @@ void pgResetFn_osdElementConfig(osdElementConfig_t *osdElementConfig)
 static void osdDrawLogo(int x, int y)
 {
     // display logo and help
+#ifdef USE_TMGOSD
+    // grab display to aid calculatePosition() in src/main/io/tmg_osd.c
+    // otherwise Betaflight logo is not displayed correctly
+    displayGrab(osdDisplayPort);
+#endif
     int fontOffset = 160;
     for (int row = 0; row < 4; row++) {
         for (int column = 0; column < 24; column++) {
@@ -371,6 +389,9 @@ static void osdDrawLogo(int x, int y)
                 displayWriteChar(osdDisplayPort, x + column, y + row, DISPLAYPORT_ATTR_NONE, fontOffset++);
         }
     }
+#ifdef USE_TMGOSD
+    displayRelease(osdDisplayPort);
+#endif
 }
 
 static void osdCompleteInitialization(void)
@@ -1009,8 +1030,10 @@ void osdUpdate(timeUs_t currentTimeUs)
         showVisualBeeper = true;
     }
 
-#ifdef MAX7456_DMA_CHANNEL_TX
-    // don't touch buffers if DMA transaction is in progress
+//#ifdef MAX7456_DMA_CHANNEL_TX
+#if defined(MAX7456_DMA_CHANNEL_TX) || defined(USE_TMGOSD)
+    // don't touch buffers if DMA transaction is in progress or while
+    // TMGOSD is transmitting
     if (displayIsTransferInProgress(osdDisplayPort)) {
         return;
     }
